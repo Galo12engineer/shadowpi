@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShadowPi - Вход</title>
+    <meta name="description" content="ShadowPi Control Panel - Secure Login">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .login-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--border-color);
+            padding: 3rem;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: var(--shadow-lg), var(--shadow-glow);
+        }
+
+        .login-logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-logo svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1rem;
+        }
+
+        .login-logo h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .login-logo p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--accent-gradient);
+            border: none;
+            border-radius: var(--radius-md);
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--danger);
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            margin-bottom: 1.5rem;
+            display: none;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .security-note {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .security-note p {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .security-note span {
+            color: var(--success);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="floating-orb orb-1"></div>
+        <div class="floating-orb orb-2"></div>
+        <div class="floating-orb orb-3"></div>
+    </div>
+
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-logo">
+                <svg viewBox="0 0 80 80" fill="none">
+                    <defs>
+                        <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#667eea" />
+                            <stop offset="100%" style="stop-color:#764ba2" />
+                        </linearGradient>
+                    </defs>
+                    <circle cx="40" cy="40" r="36" stroke="url(#logoGrad)" stroke-width="4" fill="none" />
+                    <path d="M20 40C20 28.954 28.954 20 40 20C51.046 20 60 28.954 60 40" stroke="url(#logoGrad)"
+                        stroke-width="4" stroke-linecap="round" fill="none" />
+                    <path d="M28 40C28 33.373 33.373 28 40 28C46.627 28 52 33.373 52 40" stroke="url(#logoGrad)"
+                        stroke-width="3" stroke-linecap="round" fill="none" />
+                    <circle cx="40" cy="40" r="8" fill="url(#logoGrad)" />
+                </svg>
+                <h1>ShadowPi</h1>
+                <p>Secure Control Panel</p>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <label class="form-label" for="username">Имя пользователя</label>
+                    <input type="text" id="username" name="username" class="form-input" placeholder="admin"
+                        autocomplete="username" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Пароль</label>
+                    <input type="password" id="password" name="password" class="form-input" placeholder="••••••••"
+                        autocomplete="current-password" required>
+                </div>
+
+                <button type="submit" class="login-btn" id="loginBtn">
+                    🔐 Войти
+                </button>
+            </form>
+
+            <div class="security-note">
+                <p>🔒 <span>Защищённое соединение</span></p>
+                <p>Все действия логируются</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('loginBtn');
+            const errorEl = document.getElementById('errorMessage');
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Проверка...';
+            errorEl.classList.remove('show');
+
+            try {
+                const response = await fetch('auth.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    btn.textContent = '✓ Успешно!';
+                    window.location.href = data.redirect || 'index.html';
+                } else {
+                    errorEl.textContent = data.message || 'Ошибка входа';
+                    errorEl.classList.add('show');
+                    btn.disabled = false;
+                    btn.textContent = '🔐 Войти';
+                }
+            } catch (error) {
+                errorEl.textContent = 'Ошибка соединения';
+                errorEl.classList.add('show');
+                btn.disabled = false;
+                btn.textContent = '🔐 Войти';
+            }
+        });
+
+        // Check if already authenticated
+        fetch('auth.php?action=check')
+            .then(r => r.json())
+            .then(data => {
+                if (data.authenticated) {
+                    window.location.href = 'index.html';
+                }
+            });
+    </script>
+</body>
+
+</html>

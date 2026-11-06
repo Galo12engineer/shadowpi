@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShadowPi Control Panel</title>
+    <meta name="description" content="ShadowPi - Панель управления защищённым роутером на Raspberry Pi">
+    <!-- No external resources - full privacy -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="floating-orb orb-1"></div>
+        <div class="floating-orb orb-2"></div>
+        <div class="floating-orb orb-3"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 60 60" fill="none">
+                        <circle cx="30" cy="30" r="28" stroke="url(#logoGrad)" stroke-width="3" />
+                        <path d="M15 30C15 21.7157 21.7157 15 30 15C38.2843 15 45 21.7157 45 30" stroke="url(#logoGrad)"
+                            stroke-width="3" stroke-linecap="round" />
+                        <path d="M22 30C22 25.5817 25.5817 22 30 22C34.4183 22 38 25.5817 38 30" stroke="url(#logoGrad)"
+                            stroke-width="2.5" stroke-linecap="round" />
+                        <circle cx="30" cy="30" r="5" fill="url(#logoGrad)" />
+                        <defs>
+                            <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#3d8b5a" />
+                                <stop offset="100%" style="stop-color:#2d5a3d" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <h1>ShadowPi</h1>
+                    <span class="logo-subtitle">Secure Privacy Router</span>
+                </div>
+            </div>
+            <div class="header-status">
+                <div class="status-badge" id="mainStatus">
+                    <div class="status-ring">
+                        <svg viewBox="0 0 40 40">
+                            <circle cx="20" cy="20" r="18" class="status-ring-bg" />
+                            <circle cx="20" cy="20" r="18" class="status-ring-progress" id="statusRing" />
+                        </svg>
+                        <span class="status-dot"></span>
+                    </div>
+                    <span id="statusText">Проверка...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Proxy Chain Visualization -->
+        <section class="proxy-chain-section">
+            <h2 class="section-title">
+                <span class="section-icon">🔗</span>
+                Цепочка защиты
+            </h2>
+            <div class="proxy-chain">
+                <div class="chain-node client-node" id="chainClient">
+                    <div class="node-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                        </svg>
+                    </div>
+                    <span class="node-label">Ваши устройства</span>
+                    <span class="node-detail">WiFi Клиенты</span>
+                </div>
+
+                <div class="chain-arrow active" id="arrowWifi">
+                    <div class="arrow-line"></div>
+                    <div class="arrow-packets">
+                        <span class="packet"></span>
+                        <span class="packet"></span>
+                        <span class="packet"></span>
+                    </div>
+                </div>
+
+                <div class="chain-node router-node" id="chainRouter">
+                    <div class="node-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M20.2 5.9l.8-.8C19.6 3.7 17.8 3 16 3s-3.6.7-5 2.1l.8.8C13 4.8 14.5 4.2 16 4.2s3 .6 4.2 1.7zm-.9.8c-.9-.9-2.1-1.4-3.3-1.4s-2.4.5-3.3 1.4l.8.8c.7-.7 1.6-1 2.5-1 .9 0 1.8.3 2.5 1l.8-.8zM19 13h-2V9h-2v4H5c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zM8 18H6v-2h2v2zm3.5 0h-2v-2h2v2zm3.5 0h-2v-2h2v2z" />
+                        </svg>
+                    </div>
+                    <span class="node-label">Raspberry Pi</span>
+                    <span class="node-detail">ShadowPi</span>
+                </div>
+
+                <div class="chain-arrow" id="arrowVpn">
+                    <div class="arrow-line"></div>
+                    <div class="arrow-packets">
+                        <span class="packet"></span>
+                        <span class="packet"></span>
+                        <span class="packet"></span>
+                    </div>
+                </div>
+
+                <div class="chain-node vpn-node" id="chainVpn">
+                    <div class="node-status"></div>
+                    <div class="node-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" />
+                        </svg>
+                    </div>
+                    <span class="node-label">OpenVPN</span>
+                    <span class="node-detail" id="vpnChainStatus">Проверка...</span>
+                </div>
+
+                <div class="chain-arrow" id="arrowV2ray">
+                    <div class="arrow-line"></div>
+                    <div class="arrow-packets">
+                        <span class="packet"></span>
+                        <span class="packet"></span>
+                        <span class="packet"></span>
+                    </div>
+                </div>
+
+                <div class="chain-node v2ray-node" id="chainV2ray">
+                    <div class="node-status"></div>
+                    <div class="node-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                        </svg>
+                    </div>
+                    <span class="node-label">V2Ray/XRay</span>
+                    <span class="node-detail" id="v2rayChainStatus">Проверка...</span>
+                </div>
+
+                <div class="chain-arrow optional" id="arrowTor">
+                    <div class="arrow-line"></div>
+                    <div class="arrow-packets">
+                        <span class="packet"></span>
+                        <span class="packet"></span>
+                        <span class="packet"></span>
+                    </div>
+                </div>
+
+                <div class="chain-node tor-node optional" id="chainTor">
+                    <div class="node-status"></div>
+                    <div class="node-icon">🧅</div>
+                    <span class="node-label">Tor</span>
+                    <span class="node-detail" id="torChainStatus">Опционально</span>
+                </div>
+
+                <div class="chain-arrow" id="arrowInternet">
+                    <div class="arrow-line"></div>
+                    <div class="arrow-packets">
+                        <span class="packet"></span>
+                        <span class="packet"></span>
+                        <span class="packet"></span>
+                    </div>
+                </div>
+
+                <div class="chain-node internet-node">
+                    <div class="node-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                        </svg>
+                    </div>
+                    <span class="node-label">Интернет</span>
+                    <span class="node-detail" id="internetStatus">Анонимный доступ</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Services Status Grid -->
+        <section class="services-section">
+            <h2 class="section-title">
+                <span class="section-icon">⚙️</span>
+                Статус сервисов
+            </h2>
+            <div class="services-grid">
+                <!-- VPN Service Card -->
+                <div class="service-card vpn-service" id="vpnCard">
+                    <div class="service-header">
+                        <div class="service-gauge">
+                            <svg viewBox="0 0 100 100" class="gauge-svg">
+                                <circle cx="50" cy="50" r="45" class="gauge-bg" />
+                                <circle cx="50" cy="50" r="45" class="gauge-progress vpn-gauge" id="vpnGauge" />
+                            </svg>
+                            <div class="gauge-icon">🔒</div>
+                        </div>
+                        <div class="service-info">
+                            <h3>OpenVPN</h3>
+                            <span class="service-badge" id="vpnBadge">Проверка...</span>
+                        </div>
+                    </div>
+                    <div class="service-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Статус</span>
+                            <span class="detail-value" id="vpnStatus">Неизвестно</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">IP адрес</span>
+                            <span class="detail-value mono" id="vpnIP">-</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Сервер</span>
+                            <span class="detail-value" id="vpnServer">-</span>
+                        </div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="btn btn-primary" onclick="toggleVPN()" id="vpnToggleBtn">
+                            <span class="btn-icon">▶️</span>
+                            <span id="vpnButtonText">Включить</span>
+                        </button>
+                        <button class="btn btn-ghost" onclick="restartVPN()">
+                            <span class="btn-icon">🔄</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- V2Ray Service Card -->
+                <div class="service-card v2ray-service" id="v2rayCard">
+                    <div class="service-header">
+                        <div class="service-gauge">
+                            <svg viewBox="0 0 100 100" class="gauge-svg">
+                                <circle cx="50" cy="50" r="45" class="gauge-bg" />
+                                <circle cx="50" cy="50" r="45" class="gauge-progress v2ray-gauge" id="v2rayGauge" />
+                            </svg>
+                            <div class="gauge-icon">🚀</div>
+                        </div>
+                        <div class="service-info">
+                            <h3>V2Ray / XRay</h3>
+                            <span class="service-badge" id="v2rayBadge">Проверка...</span>
+                        </div>
+                    </div>
+                    <div class="service-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Статус</span>
+                            <span class="detail-value" id="v2rayStatus">Неизвестно</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Режим</span>
+                            <span class="detail-value" id="v2rayMode">Transparent Proxy</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Серверов</span>
+                            <span class="detail-value" id="v2rayServers">-</span>
+                        </div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="btn btn-primary" onclick="openV2rayUI()">
+                            <span class="btn-icon">🎛️</span>
+                            <span>Открыть v2rayA</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tor Service Card -->
+                <div class="service-card tor-service" id="torCard">
+                    <div class="service-header">
+                        <div class="service-gauge">
+                            <svg viewBox="0 0 100 100" class="gauge-svg">
+                                <circle cx="50" cy="50" r="45" class="gauge-bg" />
+                                <circle cx="50" cy="50" r="45" class="gauge-progress tor-gauge" id="torGauge" />
+                            </svg>
+                            <div class="gauge-icon">🧅</div>
+                        </div>
+                        <div class="service-info">
+                            <h3>Tor Network</h3>
+                            <span class="service-badge secondary" id="torBadge">Отключен</span>
+                        </div>
+                        <span class="optional-badge">Опционально</span>
+                    </div>
+                    <div class="service-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Статус</span>
+                            <span class="detail-value" id="torStatus">Остановлен</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Режим</span>
+                            <span class="detail-value">Опциональный слой</span>
+                        </div>
+                        <p class="service-note">🛡️ Дополнительный слой анонимности, снижает скорость</p>
+                    </div>
+                    <div class="service-actions">
+                        <button class="btn btn-primary" onclick="toggleTor()" id="torToggleBtn">
+                            <span class="btn-icon">▶️</span>
+                            <span id="torButtonText">Включить</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- WiFi Hotspot Card -->
+                <div class="service-card wifi-service" id="wifiCard">
+                    <div class="service-header">
+                        <div class="service-gauge">
+                            <svg viewBox="0 0 100 100" class="gauge-svg">
+                                <circle cx="50" cy="50" r="45" class="gauge-bg" />
+                                <circle cx="50" cy="50" r="45" class="gauge-progress wifi-gauge" id="wifiGauge" />
+                            </svg>
+                            <div class="gauge-icon">📶</div>
+                        </div>
+                        <div class="service-info">
+                            <h3>WiFi Hotspot</h3>
+                            <span class="service-badge" id="wifiBadge">Проверка...</span>
+                        </div>
+                    </div>
+                    <div class="service-details">
+                        <div class="detail-row">
+                            <span class="detail-label">SSID</span>
+                            <span class="detail-value mono" id="wifiSSID">-</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Клиентов</span>
+                            <span class="detail-value" id="wifiClients">-</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">IP Range</span>
+                            <span class="detail-value mono">10.0.0.10-250</span>
+                        </div>
+                    </div>
+                    <div class="service-actions">
+                        <button class="btn btn-secondary" onclick="toggleWiFi()" id="wifiToggleBtn">
+                            <span class="btn-icon">⚙️</span>
+                            <span id="wifiButtonText">Управление</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- WAN Management Section -->
+        <section class="wan-section">
+            <h2 class="section-title">
+                <span class="section-icon">🔌</span>
+                Интернет подключение (WAN)
+            </h2>
+            <div class="wan-card">
+                <div class="wan-status">
+                    <div class="wan-current">
+                        <span class="wan-label">Текущее подключение:</span>
+                        <span class="wan-value" id="wanCurrent">Проверка...</span>
+                        <span class="wan-type-badge" id="wanTypeBadge">-</span>
+                    </div>
+                    <div class="wan-ip">
+                        <span class="wan-label">WAN IP:</span>
+                        <span class="wan-value mono" id="wanIP">-</span>
+                    </div>
+                </div>
+
+                <div class="wan-interfaces" id="wanInterfaces">
+                    <!-- Заполняется динамически через JS -->
+                </div>
+
+                <div class="wan-actions">
+                    <button class="btn btn-primary" onclick="switchWAN('ethernet')">
+                        <span class="btn-icon">🔗</span>
+                        Ethernet
+                    </button>
+                    <button class="btn btn-primary" onclick="switchWAN('modem')">
+                        <span class="btn-icon">📡</span>
+                        USB Модем
+                    </button>
+                    <button class="btn btn-secondary" onclick="switchWAN('auto')">
+                        <span class="btn-icon">🔄</span>
+                        Авто
+                    </button>
+                    <button class="btn btn-ghost" onclick="setupModem()">
+                        <span class="btn-icon">⚙️</span>
+                        Настроить модем
+                    </button>
+                </div>
+
+                <div class="modem-info" id="modemInfo" style="display: none;">
+                    <div class="modem-header">
+                        <span class="modem-icon">📱</span>
+                        <span class="modem-name" id="modemName">USB Модем</span>
+                        <span class="modem-signal" id="modemSignal">-</span>
+                    </div>
+                    <div class="modem-details">
+                        <div class="modem-detail">
+                            <span>Оператор:</span>
+                            <strong id="modemOperator">-</strong>
+                        </div>
+                        <div class="modem-detail">
+                            <span>Статус:</span>
+                            <strong id="modemState">-</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- World Map & IP Section -->
+        <section class="ip-section">
+            <div class="ip-card">
+                <div class="ip-header">
+                    <h2>
+                        <span class="section-icon">🌍</span>
+                        Ваш публичный IP
+                    </h2>
+                    <button class="btn btn-ghost" onclick="checkIP()">
+                        <span class="btn-icon">🔄</span>
+                        Обновить
+                    </button>
+                </div>
+                <div class="ip-content">
+                    <div class="ip-world-map">
+                        <div class="world-map-bg">
+                            <!-- Simple stylized world map -->
+                            <svg viewBox="0 0 400 200" class="map-svg">
+                                <!-- Continents simplified -->
+                                <ellipse cx="200" cy="100" rx="180" ry="80" fill="rgba(102,126,234,0.1)"
+                                    stroke="rgba(102,126,234,0.3)" stroke-width="1" />
+                                <!-- Grid lines -->
+                                <line x1="20" y1="100" x2="380" y2="100" stroke="rgba(102,126,234,0.15)"
+                                    stroke-width="0.5" />
+                                <line x1="200" y1="20" x2="200" y2="180" stroke="rgba(102,126,234,0.15)"
+                                    stroke-width="0.5" />
+                                <line x1="110" y1="20" x2="110" y2="180" stroke="rgba(102,126,234,0.1)"
+                                    stroke-width="0.5" />
+                                <line x1="290" y1="20" x2="290" y2="180" stroke="rgba(102,126,234,0.1)"
+                                    stroke-width="0.5" />
+                                <line x1="20" y1="60" x2="380" y2="60" stroke="rgba(102,126,234,0.1)"
+                                    stroke-width="0.5" />
+                                <line x1="20" y1="140" x2="380" y2="140" stroke="rgba(102,126,234,0.1)"
+                                    stroke-width="0.5" />
+                            </svg>
+                            <div class="location-marker" id="locationMarker">
+                                <div class="marker-ping"></div>
+                                <div class="marker-dot"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ip-info">
+                        <div class="ip-main-display">
+                            <span class="ip-label">IP адрес</span>
+                            <span class="ip-value" id="publicIP">Проверка...</span>
+                        </div>
+                        <div class="ip-details-grid">
+                            <div class="ip-detail">
+                                <svg viewBox="0 0 24 24" fill="currentColor" class="detail-icon">
+                                    <path
+                                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                                </svg>
+                                <div class="detail-content">
+                                    <span class="detail-label">Страна</span>
+                                    <span class="detail-value" id="ipCountry">-</span>
+                                </div>
+                            </div>
+                            <div class="ip-detail">
+                                <svg viewBox="0 0 24 24" fill="currentColor" class="detail-icon">
+                                    <path
+                                        d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                                </svg>
+                                <div class="detail-content">
+                                    <span class="detail-label">Город</span>
+                                    <span class="detail-value" id="ipCity">-</span>
+                                </div>
+                            </div>
+                            <div class="ip-detail">
+                                <svg viewBox="0 0 24 24" fill="currentColor" class="detail-icon">
+                                    <path
+                                        d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" />
+                                </svg>
+                                <div class="detail-content">
+                                    <span class="detail-label">Провайдер</span>
+                                    <span class="detail-value" id="ipOrg">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- System Stats Section -->
+        <section class="system-section">
+            <div class="system-card">
+                <h2 class="section-title">
+                    <span class="section-icon">💻</span>
+                    Система Raspberry Pi
+                </h2>
+                <div class="system-stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-ring">
+                            <svg viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="40" class="stat-ring-bg" />
+                                <circle cx="50" cy="50" r="40" class="stat-ring-progress cpu-ring" id="cpuRing" />
+                            </svg>
+                            <div class="stat-ring-value" id="cpuValue">0%</div>
+                        </div>
+                        <span class="stat-label">CPU</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-ring">
+                            <svg viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="40" class="stat-ring-bg" />
+                                <circle cx="50" cy="50" r="40" class="stat-ring-progress mem-ring" id="memRing" />
+                            </svg>
+                            <div class="stat-ring-value" id="memValue">0%</div>
+                        </div>
+                        <span class="stat-label">Память</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-ring">
+                            <svg viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="40" class="stat-ring-bg" />
+                                <circle cx="50" cy="50" r="40" class="stat-ring-progress temp-ring" id="tempRing" />
+                            </svg>
+                            <div class="stat-ring-value" id="tempValue">0°C</div>
+                        </div>
+                        <span class="stat-label">Температура</span>
+                    </div>
+                    <div class="stat-card uptime-card">
+                        <div class="uptime-display">
+                            <span class="uptime-icon">⏱️</span>
+                            <span class="uptime-value" id="uptimeValue">-</span>
+                        </div>
+                        <span class="stat-label">Время работы</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Quick Actions Section -->
+        <section class="actions-section">
+            <div class="actions-card">
+                <h2 class="section-title">
+                    <span class="section-icon">⚡</span>
+                    Быстрые действия
+                </h2>
+                <div class="actions-grid">
+                    <button class="action-btn action-start" onclick="startAll()">
+                        <div class="action-icon">▶️</div>
+                        <span class="action-label">Запустить все</span>
+                    </button>
+                    <button class="action-btn action-stop" onclick="stopAll()">
+                        <div class="action-icon">⏹️</div>
+                        <span class="action-label">Остановить все</span>
+                    </button>
+                    <button class="action-btn action-restart" onclick="restartAll()">
+                        <div class="action-icon">🔄</div>
+                        <span class="action-label">Перезапуск</span>
+                    </button>
+                    <button class="action-btn action-test" onclick="runTests()">
+                        <div class="action-icon">🧪</div>
+                        <span class="action-label">Тесты</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Logs Section -->
+        <section class="logs-section">
+            <div class="logs-card">
+                <div class="logs-header">
+                    <h2 class="section-title">
+                        <span class="section-icon">📋</span>
+                        Логи системы
+                    </h2>
+                    <button class="btn btn-ghost" onclick="refreshLogs()">
+                        <span class="btn-icon">🔄</span>
+                        Обновить
+                    </button>
+                </div>
+                <div class="logs-container" id="logs">
+                    <pre>Загрузка логов...</pre>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>🔒 ShadowPi v2.0 • Secure Privacy Router</p>
+            <button class="btn btn-ghost" onclick="logout()" style="margin-top: 0.5rem;">🚪 Выход</button>
+        </footer>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
