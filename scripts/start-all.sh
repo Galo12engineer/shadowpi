@@ -15,7 +15,7 @@ sleep 2
 
 # 3. Setup V2Ray redirect rules
 echo "▶️  Настройка iptables для V2Ray..."
-/opt/anon-router/scripts/setup-v2ray-redirect.sh
+/opt/shadowpi/scripts/setup-v2ray-redirect.sh || echo "⚠️  V2Ray redirect не включён — трафик клиентов идёт только через VPN"
 
 # 4. WiFi Hotspot
 echo "▶️  Запуск WiFi Hotspot..."

@@ -108,7 +108,7 @@ curl ipinfo.io
 Создайте конфигурационный файл с цепочкой:
 
 ```bash
-sudo nano /opt/anon-router/configs/v2ray-chain.json
+sudo nano /opt/shadowpi/configs/v2ray-chain.json
 ```
 
 Вставьте:
@@ -217,7 +217,7 @@ sudo nano /opt/anon-router/configs/v2ray-chain.json
 sudo systemctl stop v2raya
 
 # Запустите с кастомным конфигом
-sudo xray run -c /opt/anon-router/configs/v2ray-chain.json
+sudo xray run -c /opt/shadowpi/configs/v2ray-chain.json
 
 # Или создайте systemd сервис
 sudo nano /etc/systemd/system/xray-chain.service
@@ -231,7 +231,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/xray run -c /opt/anon-router/configs/v2ray-chain.json
+ExecStart=/usr/local/bin/xray run -c /opt/shadowpi/configs/v2ray-chain.json
 Restart=on-failure
 
 [Install]
@@ -416,7 +416,7 @@ sudo systemctl status tor
 ### Шаг 4: Настройте маршрутизацию через Tor
 
 ```bash
-sudo nano /opt/anon-router/scripts/route-through-tor.sh
+sudo nano /opt/shadowpi/scripts/route-through-tor.sh
 ```
 
 ```bash
@@ -434,8 +434,8 @@ echo "✅ Routing через Tor активирован"
 ```
 
 ```bash
-sudo chmod +x /opt/anon-router/scripts/route-through-tor.sh
-sudo /opt/anon-router/scripts/route-through-tor.sh
+sudo chmod +x /opt/shadowpi/scripts/route-through-tor.sh
+sudo /opt/shadowpi/scripts/route-through-tor.sh
 ```
 
 ### Шаг 5: Проверка полной цепи
@@ -468,7 +468,7 @@ curl --socks5 127.0.0.1:9050 https://check.torproject.org/api/ip
 ### Скрипт переключения режимов
 
 ```bash
-sudo nano /opt/anon-router/scripts/switch-mode.sh
+sudo nano /opt/shadowpi/scripts/switch-mode.sh
 ```
 
 ```bash
@@ -492,7 +492,7 @@ case $MODE in
   advanced)
     echo "🟣 Режим: VPN + V2Ray + Tor"
     sudo systemctl start openvpn-windscribe v2raya tor
-    sudo /opt/anon-router/scripts/route-through-tor.sh
+    sudo /opt/shadowpi/scripts/route-through-tor.sh
     ;;
   
   *)
@@ -506,7 +506,7 @@ curl ipinfo.io
 ```
 
 ```bash
-sudo chmod +x /opt/anon-router/scripts/switch-mode.sh
+sudo chmod +x /opt/shadowpi/scripts/switch-mode.sh
 
 # Использование:
 sudo /opt/shadowpi/scripts/toggle-tor.sh fast      # Режим Fast (VPN → Proxy)
@@ -552,7 +552,7 @@ echo "=== All IPs should be different! ==="
 sudo nano /etc/systemd/system/openvpn-windscribe.service
 
 # Добавьте в [Service]:
-ExecStopPost=/opt/anon-router/scripts/killswitch.sh
+ExecStopPost=/opt/shadowpi/scripts/killswitch.sh
 ```
 
 ## 💡 Лучшие практики

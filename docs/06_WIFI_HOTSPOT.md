@@ -267,7 +267,7 @@ sudo systemctl start systemd-networkd
 ### Полный скрипт запуска
 
 ```bash
-sudo nano /opt/anon-router/scripts/start-wifi.sh
+sudo nano /opt/shadowpi/scripts/start-wifi.sh
 ```
 
 ```bash
@@ -313,10 +313,10 @@ iw dev wlan0 station dump | grep Station | wc -l
 ```
 
 ```bash
-sudo chmod +x /opt/anon-router/scripts/start-wifi.sh
+sudo chmod +x /opt/shadowpi/scripts/start-wifi.sh
 
 # Запуск
-sudo /opt/anon-router/scripts/start-wifi.sh
+sudo /opt/shadowpi/scripts/start-wifi.sh
 ```
 
 ## 📊 Мониторинг WiFi

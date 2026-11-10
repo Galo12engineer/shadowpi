@@ -147,9 +147,9 @@ ss://base64string...
 
 ```bash
 # Создайте кастомный конфиг для цепочки
-sudo mkdir -p /opt/anon-router/configs
+sudo mkdir -p /opt/shadowpi/configs
 
-sudo nano /opt/anon-router/configs/v2ray-chain.json
+sudo nano /opt/shadowpi/configs/v2ray-chain.json
 ```
 
 Вставьте:
@@ -229,60 +229,31 @@ sudo nano /opt/anon-router/configs/v2ray-chain.json
 ```bash
 # Используйте этот конфиг (опционально, если нужна точная настройка)
 # sudo systemctl stop v2raya
-# sudo xray run -c /opt/anon-router/configs/v2ray-chain.json
+# sudo xray run -c /opt/shadowpi/configs/v2ray-chain.json
 ```
 
 ## Шаг 7: Настройка iptables для перенаправления трафика
 
 V2Ray нужно перенаправить весь трафик с WiFi (wlan0) в transparent proxy:
 
-```bash
-# Создайте скрипт для iptables правил
-sudo nano /opt/anon-router/scripts/setup-v2ray-redirect.sh
-```
+Скрипт уже лежит в репозитории (`scripts/setup-v2ray-redirect.sh`), установщик кладёт его
+в `/opt/shadowpi/scripts/`. Не создавайте свою копию — правьте файл в репозитории.
 
-Вставьте:
-
-```bash
-#!/bin/bash
-# V2Ray transparent proxy redirect rules
-
-# Очистить старые правила
-iptables -t nat -F V2RAY 2>/dev/null
-iptables -t nat -X V2RAY 2>/dev/null
-iptables -t mangle -F V2RAY 2>/dev/null
-iptables -t mangle -X V2RAY 2>/dev/null
-
-# Создать новую цепочку
-iptables -t nat -N V2RAY
-iptables -t mangle -N V2RAY
-
-# Игнорировать локальные адреса
-iptables -t nat -A V2RAY -d 0.0.0.0/8 -j RETURN
-iptables -t nat -A V2RAY -d 10.0.0.0/8 -j RETURN
-iptables -t nat -A V2RAY -d 127.0.0.0/8 -j RETURN
-iptables -t nat -A V2RAY -d 169.254.0.0/16 -j RETURN
-iptables -t nat -A V2RAY -d 172.16.0.0/12 -j RETURN
-iptables -t nat -A V2RAY -d 192.168.0.0/16 -j RETURN
-iptables -t nat -A V2RAY -d 224.0.0.0/4 -j RETURN
-iptables -t nat -A V2RAY -d 240.0.0.0/4 -j RETURN
-
-# Перенаправить на V2Ray transparent proxy (порт 12345)
-iptables -t nat -A V2RAY -p tcp -j REDIRECT --to-ports 12345
-
-# Применить к трафику от клиентов WiFi
-iptables -t nat -A PREROUTING -i wlan0 -j V2RAY
-
-echo "✅ V2Ray iptables rules applied"
-```
+Что он делает:
+- перенаправляет TCP клиентов Wi-Fi на порт `12345` (inbound `dokodemo-door` из шага выше);
+- **не трогает** соединения к самому роутеру (панель, DNS, SSH) и частные сети —
+  отбор по адресу назначения, а не по порту, иначе веб (80/443) шёл бы мимо прокси;
+- открывает порт `12345` в INPUT для `wlan0`, потому что killswitch по умолчанию режет входящие;
+- **отказывается** включаться, если на `12345` никто не слушает: иначе у клиентов
+  умрёт весь TCP, кроме того, что не перенаправляется. Тогда трафик идёт только через VPN.
 
 ```bash
-# Сделайте исполняемым
-sudo chmod +x /opt/anon-router/scripts/setup-v2ray-redirect.sh
-
-# Запустите
-sudo /opt/anon-router/scripts/setup-v2ray-redirect.sh
+sudo /opt/shadowpi/scripts/setup-v2ray-redirect.sh       # включить
+sudo /opt/shadowpi/scripts/setup-v2ray-redirect.sh off   # выключить
 ```
+
+Важно: inbound должен слушать не только `127.0.0.1` (`"listen": "0.0.0.0"` или адрес `wlan0`),
+потому что REDIRECT доставляет соединения на адрес интерфейса, с которого они пришли.
 
 ## Шаг 8: Автозапуск v2rayA с правильными приоритетами
 
@@ -416,7 +387,7 @@ sudo netstat -tlnp | grep 2017
 sudo iptables -t nat -L -n -v
 
 # Перезапустите скрипт редиректа
-sudo /opt/anon-router/scripts/setup-v2ray-redirect.sh
+sudo /opt/shadowpi/scripts/setup-v2ray-redirect.sh
 ```
 
 ### Медленная скорость

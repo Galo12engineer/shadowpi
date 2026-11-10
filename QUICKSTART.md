@@ -131,7 +131,7 @@ auth-user-pass /etc/openvpn/auth/windscribe-auth.txt
 # НА PI:
 
 # Запустите все сервисы
-sudo /opt/anon-router/scripts/start-all.sh
+sudo /opt/shadowpi/scripts/start-all.sh
 
 # Подождите 10 секунд
 
@@ -286,7 +286,7 @@ sudo sysctl net.ipv4.ip_forward
 # Должно быть = 1
 
 # Перезапустите все
-sudo /opt/anon-router/scripts/restart-all.sh
+sudo /opt/shadowpi/scripts/restart-all.sh
 ```
 
 ### Медленный интернет

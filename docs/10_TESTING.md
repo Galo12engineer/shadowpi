@@ -8,7 +8,7 @@
 ssh admin@anonrouter.local
 
 # Запуск всех тестов
-sudo bash /opt/anon-router/scripts/test-all.sh
+sudo bash /opt/shadowpi/scripts/test-all.sh
 ```
 
 Этот скрипт проверит:
@@ -336,7 +336,7 @@ sudo dmesg | tail -50
 
 ```bash
 # Добавьте в cron для ежедневной проверки
-echo "0 8 * * * /opt/anon-router/scripts/test-all.sh > /var/log/anon-router/daily-test.log 2>&1" | sudo crontab -
+echo "0 8 * * * /opt/shadowpi/scripts/test-all.sh > /var/log/shadowpi/daily-test.log 2>&1" | sudo crontab -
 ```
 
 ## ✅ Ваша система безопасна если:

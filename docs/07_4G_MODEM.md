@@ -144,7 +144,7 @@ ip addr show wwan0
 ### Скрипт автоматического подключения
 
 ```bash
-sudo nano /opt/anon-router/scripts/connect-4g.sh
+sudo nano /opt/shadowpi/scripts/connect-4g.sh
 ```
 
 ```bash
@@ -201,10 +201,10 @@ fi
 ```
 
 ```bash
-sudo chmod +x /opt/anon-router/scripts/connect-4g.sh
+sudo chmod +x /opt/shadowpi/scripts/connect-4g.sh
 
 # Запуск
-sudo /opt/anon-router/scripts/connect-4g.sh
+sudo /opt/shadowpi/scripts/connect-4g.sh
 ```
 
 ## 🔀 Переключение между Ethernet и 4G
@@ -212,7 +212,7 @@ sudo /opt/anon-router/scripts/connect-4g.sh
 ### Автоматический fail-over скрипт
 
 ```bash
-sudo nano /opt/anon-router/scripts/wan-failover.sh
+sudo nano /opt/shadowpi/scripts/wan-failover.sh
 ```
 
 ```bash
@@ -250,10 +250,10 @@ done
 ```
 
 ```bash
-sudo chmod +x /opt/anon-router/scripts/wan-failover.sh
+sudo chmod +x /opt/shadowpi/scripts/wan-failover.sh
 
 # Запуск в фоне
-sudo /opt/anon-router/scripts/wan-failover.sh &
+sudo /opt/shadowpi/scripts/wan-failover.sh &
 ```
 
 ### systemd сервис для failover
@@ -269,7 +269,7 @@ After=network-online.target ModemManager.service
 
 [Service]
 Type=simple
-ExecStart=/opt/anon-router/scripts/wan-failover.sh
+ExecStart=/opt/shadowpi/scripts/wan-failover.sh
 Restart=always
 RestartSec=10
 
@@ -354,13 +354,13 @@ done
 sudo nano /etc/openvpn/client/windscribe.conf
 
 # Добавьте:
-# route-up /opt/anon-router/scripts/vpn-route-4g.sh
+# route-up /opt/shadowpi/scripts/vpn-route-4g.sh
 ```
 
 Создайте скрипт:
 
 ```bash
-sudo nano /opt/anon-router/scripts/vpn-route-4g.sh
+sudo nano /opt/shadowpi/scripts/vpn-route-4g.sh
 ```
 
 ```bash
@@ -377,7 +377,7 @@ echo "✅ VPN маршрут через 4G настроен"
 ```
 
 ```bash
-sudo chmod +x /opt/anon-router/scripts/vpn-route-4g.sh
+sudo chmod +x /opt/shadowpi/scripts/vpn-route-4g.sh
 ```
 
 ## 🐛 Troubleshooting

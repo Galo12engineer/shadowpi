@@ -267,7 +267,7 @@ sudo dmesg -w | grep KILLSWITCH
 
 ```bash
 # Создайте скрипт мониторинга
-sudo nano /opt/anon-router/scripts/firewall-stats.sh
+sudo nano /opt/shadowpi/scripts/firewall-stats.sh
 ```
 
 ```bash
@@ -350,7 +350,7 @@ chain input {
 Если nftables не работает, используйте iptables:
 
 ```bash
-sudo nano /opt/anon-router/scripts/iptables-killswitch.sh
+sudo nano /opt/shadowpi/scripts/iptables-killswitch.sh
 ```
 
 ```bash
@@ -418,8 +418,8 @@ echo "✅ Killswitch applied (iptables)"
 ```
 
 ```bash
-sudo chmod +x /opt/anon-router/scripts/iptables-killswitch.sh
-sudo /opt/anon-router/scripts/iptables-killswitch.sh
+sudo chmod +x /opt/shadowpi/scripts/iptables-killswitch.sh
+sudo /opt/shadowpi/scripts/iptables-killswitch.sh
 ```
 
 ## ✅ Готово!

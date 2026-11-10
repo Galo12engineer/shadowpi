@@ -442,7 +442,7 @@ curl ipinfo.io  # Проверка IP
 
 **Еженедельно:**
 ```bash
-sudo /opt/anon-router/scripts/test-all.sh  # Тесты безопасности
+sudo /opt/shadowpi/scripts/test-all.sh  # Тесты безопасности
 ```
 
 **Ежемесячно:**
@@ -457,7 +457,7 @@ sudo reboot  # Перезагрузка
 # Смотреть логи
 sudo journalctl -u openvpn-windscribe -f
 sudo journalctl -u v2raya -f
-sudo tail -f /var/log/anon-router/*.log
+sudo tail -f /var/log/shadowpi/*.log
 ```
 
 ## 🚀 Будущие улучшения

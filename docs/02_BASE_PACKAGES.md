@@ -223,14 +223,14 @@ rfkill list
 
 ```bash
 # Создание папки для нашего проекта
-sudo mkdir -p /opt/anon-router/{scripts,configs,logs,backups}
+sudo mkdir -p /opt/shadowpi/{scripts,configs,logs,backups}
 
 # Права доступа
-sudo chown -R admin:admin /opt/anon-router
+sudo chown -R admin:admin /opt/shadowpi
 
 # Создание папок для логов
-sudo mkdir -p /var/log/anon-router
-sudo chown admin:admin /var/log/anon-router
+sudo mkdir -p /var/log/shadowpi
+sudo chown admin:admin /var/log/shadowpi
 
 echo "✅ Структура директорий создана"
 ```
@@ -290,10 +290,10 @@ bash /tmp/check-packages.sh
 
 ```bash
 # Создайте бэкап дефолтных конфигов
-sudo cp /etc/sysctl.conf /opt/anon-router/backups/sysctl.conf.bak
-sudo cp /etc/dhcpcd.conf /opt/anon-router/backups/dhcpcd.conf.bak 2>/dev/null || true
+sudo cp /etc/sysctl.conf /opt/shadowpi/backups/sysctl.conf.bak
+sudo cp /etc/dhcpcd.conf /opt/shadowpi/backups/dhcpcd.conf.bak 2>/dev/null || true
 
-echo "✅ Бэкапы созданы в /opt/anon-router/backups/"
+echo "✅ Бэкапы созданы в /opt/shadowpi/backups/"
 ```
 
 ## 📊 Проверка использования ресурсов

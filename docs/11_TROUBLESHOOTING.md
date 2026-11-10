@@ -214,13 +214,13 @@ ip route show default
 sudo iptables -t nat -L V2RAY -n -v
 
 # 5. Заново примените redirect
-sudo /opt/anon-router/scripts/setup-v2ray-redirect.sh
+sudo /opt/shadowpi/scripts/setup-v2ray-redirect.sh
 
 # 6. Проверьте цепочку
 traceroute -T google.com
 
 # 7. Перезапустите все
-sudo /opt/anon-router/scripts/restart-all.sh
+sudo /opt/shadowpi/scripts/restart-all.sh
 ```
 
 ---
@@ -416,7 +416,7 @@ sudo journalctl -u ModemManager -f
 
 ```bash
 # 1. Создайте строгий firewall killswitch
-sudo nano /opt/anon-router/scripts/killswitch.sh
+sudo nano /opt/shadowpi/scripts/killswitch.sh
 ```
 
 Вставьте:
@@ -463,11 +463,11 @@ echo "✅ Killswitch активирован"
 ```
 
 ```bash
-sudo chmod +x /opt/anon-router/scripts/killswitch.sh
-sudo /opt/anon-router/scripts/killswitch.sh
+sudo chmod +x /opt/shadowpi/scripts/killswitch.sh
+sudo /opt/shadowpi/scripts/killswitch.sh
 
 # 2. Автоматическая активация при загрузке
-echo "/opt/anon-router/scripts/killswitch.sh" | sudo tee -a /etc/rc.local
+echo "/opt/shadowpi/scripts/killswitch.sh" | sudo tee -a /etc/rc.local
 ```
 
 ---
@@ -542,7 +542,7 @@ cp /etc/openvpn/client/windscribe.conf ~/backup/
 cp /etc/openvpn/auth/windscribe-auth.txt ~/backup/
 
 # 2. Остановите все
-sudo /opt/anon-router/scripts/stop-all.sh
+sudo /opt/shadowpi/scripts/stop-all.sh
 
 # 3. Удалите пакеты
 sudo apt remove openvpn v2raya xray hostapd dnsmasq -y
@@ -550,7 +550,7 @@ sudo apt autoremove -y
 
 # 4. Очистите конфиги
 sudo rm -rf /etc/openvpn/client/*
-sudo rm -rf /opt/anon-router/*
+sudo rm -rf /opt/shadowpi/*
 
 # 5. Переустановите
 sudo bash scripts/master-install.sh
@@ -581,7 +581,7 @@ sudo reboot
 
 1. **Соберите диагностику:**
 ```bash
-sudo /opt/anon-router/scripts/collect-diagnostics.sh
+sudo /opt/shadowpi/scripts/collect-diagnostics.sh
 # Создаст /tmp/diagnostics.tar.gz
 ```
 
