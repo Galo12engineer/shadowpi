@@ -1,0 +1,52 @@
+# ShadowPi lab: runs the real installer and scripts on Debian arm64 without a Raspberry Pi.
+# What is real and what is emulated: see docs/LAB.md.
+name: shadowpi-lab
+
+networks:
+  wan:            # "the internet side": router eth0, VPN server, test website
+    ipam: { config: [ { subnet: 172.30.0.0/24, gateway: 172.30.0.1 } ] }
+  lan:            # stands in for the Wi-Fi hotspot (router wlan0 = 10.0.0.1)
+                  # not "internal": Docker would drop the client's forwarded packets itself
+    ipam: { config: [ { subnet: 10.0.0.0/24, gateway: 10.0.0.254 } ] }
+
+volumes:
+  pki: {}
+
+services:
+  router:
+    build: ./router
+    hostname: shadowpi
+    privileged: true
+    cgroup: host
+    tmpfs: [ /run, /run/lock, /tmp ]
+    volumes:
+      - ..:/src:ro
+      - pki:/pki:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    networks:
+      wan: { ipv4_address: 172.30.0.10 }
+      lan: { ipv4_address: 10.0.0.1 }
+
+  vpnserver:
+    build: ./vpnserver
+    cap_add: [ NET_ADMIN ]
+    devices: [ /dev/net/tun ]
+    volumes: [ pki:/pki ]
+    networks:
+      wan: { ipv4_address: 172.30.0.20 }
+
+  whoami:            # "the internet": public test address 198.51.100.7, also the ISP gateway
+    build: ./whoami
+    cap_add: [ NET_ADMIN ]
+    networks:
+      wan: { ipv4_address: 172.30.0.30 }
+
+  client:
+    build: ./client
+    cap_add: [ NET_ADMIN ]
+    command: >
+      sh -c "ip route replace default via 10.0.0.1 &&
+             echo 'nameserver 10.0.0.1' > /etc/resolv.conf &&
+             touch /ready && sleep infinity"
+    networks:
+      lan: { ipv4_address: 10.0.0.50 }
