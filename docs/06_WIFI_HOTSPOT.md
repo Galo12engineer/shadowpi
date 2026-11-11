@@ -167,10 +167,10 @@ cache-size=1000
 # DHCP авторитетный сервер
 dhcp-authoritative
 
-# Логи (опционально, для отладки)
-log-queries
-log-dhcp
-log-facility=/var/log/dnsmasq.log
+# No query logging: a privacy router must not keep a record of what clients resolve.
+# Do NOT add log-queries / log-dhcp. To debug, run it once in the foreground instead:
+#   sudo systemctl stop dnsmasq && sudo dnsmasq -d -q   (Ctrl+C, then start the service again)
+quiet-dhcp
 
 # Игнорировать resolv.conf (используем наши DNS)
 no-resolv
@@ -187,10 +187,6 @@ no-resolv
 ### Применение
 
 ```bash
-# Создайте лог файл
-sudo touch /var/log/dnsmasq.log
-sudo chown dnsmasq:nogroup /var/log/dnsmasq.log
-
 # Включите автозапуск
 sudo systemctl enable dnsmasq
 
@@ -496,8 +492,8 @@ sudo netstat -nlp | grep dnsmasq
 # Проверьте конфигурацию
 sudo dnsmasq --test
 
-# Логи
-sudo tail -f /var/log/dnsmasq.log
+# Service log (startup and errors only; DNS queries are not logged on purpose)
+sudo journalctl -u dnsmasq -n 50 --no-pager
 ```
 
 ## ✅ Готово!

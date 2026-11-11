@@ -280,9 +280,9 @@ address=/anonrouter.local/10.0.0.1
 server=1.1.1.1
 server=8.8.8.8
 
-# Логи
-log-queries
-log-dhcp
+# No query logging: a privacy router must not keep a record of what clients resolve.
+# (Do not add log-queries / log-dhcp here; for debugging run dnsmasq by hand with -q.)
+quiet-dhcp
 EOF
 
 # hostapd конфигурация
