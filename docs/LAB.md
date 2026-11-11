@@ -1,3 +1,5 @@
+[RU](LAB.ru.md) · [UA](LAB.ua.md) · **EN**
+
 # Test lab: running ShadowPi without a Raspberry Pi
 
 The lab runs the **real** `scripts/master-install.sh`, the real web panel and the real

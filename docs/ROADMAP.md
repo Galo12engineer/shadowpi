@@ -1,3 +1,5 @@
+[RU](ROADMAP.ru.md) · [UA](ROADMAP.ua.md) · **EN**
+
 # Roadmap
 
 What the lab-verified hotfix round (branch `fix/lab-verified-routing`) fixed is listed in
@@ -61,4 +63,5 @@ means. Items marked **FAIL in the lab** have a check that fails today on purpose
   that is not on a short list of known ones (today: T1, P7).
 - **Exit code.** `lab-test.sh` always exits 0; it should exit non-zero on an unexpected FAIL.
 - **Static checks in CI:** `shellcheck` for `scripts/` and `lab/`, `php -l` for `web-ui/`.
-- **Docs language.** The step-by-step docs are in Russian, the newer sections in English.
+- **Docs language.** The step-by-step guides 00–11 exist in Russian only; README, LAB and
+  ROADMAP are in three languages.

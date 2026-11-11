@@ -1,3 +1,5 @@
+[RU](README.ru.md) · [UA](README.ua.md) · **EN**
+
 # ShadowPi: a privacy router for Raspberry Pi
 
 <p align="center">
@@ -6,7 +8,7 @@
 
 ShadowPi turns a Raspberry Pi 4 into a Wi-Fi router that sends every connected device through a VPN and, optionally, an obfuscation proxy. A kill switch blocks traffic whenever the tunnel is down. A Tor layer is planned and currently experimental (see below).
 
-> **Status:** the installer, the firewall scripts and the web panel are tested end to end in a Docker lab that runs the real code on Debian arm64 ([docs/LAB.md](docs/LAB.md): what is real, what is emulated, every check and its result). The project has **not been run on real hardware yet**: Wi-Fi radio, 4G modem and performance are not covered. Known gaps are in [docs/ROADMAP.md](docs/ROADMAP.md). Detailed setup docs are in Russian.
+> **Status:** the installer, the firewall scripts and the web panel are tested end to end in a Docker lab that runs the real code on Debian arm64 ([docs/LAB.md](docs/LAB.md): what is real, what is emulated, every check and its result). The project has **not been run on real hardware yet**: Wi-Fi radio, 4G modem and performance are not covered. Known gaps are in [docs/ROADMAP.md](docs/ROADMAP.md). The step-by-step guides 00–11 are in Russian.
 
 ## How traffic flows
 
@@ -89,7 +91,7 @@ The lab runs the real installer and scripts and tests them from a client's point
 ```
 scripts/   install, start/stop, kill switch, Tor toggle, WAN switch, modem setup, tests
 web-ui/    control panel (HTML/JS front end, PHP API and auth)
-docs/      step-by-step guides 00–11 (hardware → troubleshooting), in Russian; LAB.md and ROADMAP.md in English
+docs/      step-by-step guides 00–11 (hardware → troubleshooting), in Russian; LAB and ROADMAP in English, Russian and Ukrainian
 lab/       Docker lab: router, VPN server, test website and client; lab-test.sh
 ```
 
