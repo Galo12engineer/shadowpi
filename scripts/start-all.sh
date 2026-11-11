@@ -1,35 +1,64 @@
 #!/bin/bash
-# Start all services for ShadowPi
+# Start all ShadowPi services.
+# Exit code: 0 only if every required service is running afterwards, 1 otherwise.
+# The web panel reports this exit code, so do not hide failures here.
+
+failed=()
+
+# is_installed <unit>: optional components (v2rayA, Tor) may be absent.
+is_installed() { systemctl cat "$1" >/dev/null 2>&1; }
+
+# start_required <label> <unit>: start, then check that it really stayed up.
+start_required() {
+    echo "▶️  Запуск $1..."
+    if ! sudo systemctl start "$2"; then
+        echo "❌ $1: не удалось запустить ($2)" >&2
+        failed+=("$1")
+        return 1
+    fi
+}
 
 echo "🚀 Запуск всех сервисов..."
 
-# 1. OpenVPN
-echo "▶️  Запуск OpenVPN..."
-sudo systemctl start openvpn-windscribe
+# 1. OpenVPN (required: without it clients have no internet behind the kill switch)
+start_required "OpenVPN" openvpn-windscribe
 sleep 3
 
-# 2. V2Ray
-echo "▶️  Запуск v2rayA..."
-sudo systemctl start v2raya
-sleep 2
+# 2. v2rayA (optional component)
+if is_installed v2raya; then
+    start_required "v2rayA" v2raya
+    sleep 2
+else
+    echo "ℹ️  v2rayA не установлен — пропуск (трафик клиентов идёт только через VPN)"
+fi
 
-# 3. Setup V2Ray redirect rules
+# 3. V2Ray redirect. Not applied when no proxy is listening; that is a supported state
+#    (clients stay on the VPN), so it is a warning, not a failure.
 echo "▶️  Настройка iptables для V2Ray..."
 /opt/shadowpi/scripts/setup-v2ray-redirect.sh || echo "⚠️  V2Ray redirect не включён — трафик клиентов идёт только через VPN"
 
-# 4. WiFi Hotspot
-echo "▶️  Запуск WiFi Hotspot..."
-sudo systemctl start hostapd
-sudo systemctl start dnsmasq
+# 4. WiFi Hotspot (required)
+start_required "WiFi Hotspot (hostapd)" hostapd
+start_required "DHCP/DNS (dnsmasq)" dnsmasq
 sleep 2
 
-# 5. Check statuses
+# 5. A unit can start and die a moment later, so check the final state too.
 echo ""
 echo "📊 Статус сервисов:"
-echo "VPN: $(systemctl is-active openvpn-windscribe)"
-echo "V2Ray: $(systemctl is-active v2raya)"
-echo "WiFi: $(systemctl is-active hostapd)"
+for pair in "OpenVPN:openvpn-windscribe" "WiFi Hotspot (hostapd):hostapd" "DHCP/DNS (dnsmasq):dnsmasq"; do
+    label="${pair%%:*}"; unit="${pair##*:}"
+    state=$(systemctl is-active "$unit" 2>/dev/null)
+    echo "$label: $state"
+    if [ "$state" != "active" ] && [[ ! " ${failed[*]} " == *" $label "* ]]; then
+        failed+=("$label")
+    fi
+done
+is_installed v2raya && echo "v2rayA: $(systemctl is-active v2raya 2>/dev/null)"
 
 echo ""
+if [ ${#failed[@]} -gt 0 ]; then
+    echo "❌ Не запущено: $(IFS=,; echo "${failed[*]}")" >&2
+    exit 1
+fi
 echo "✅ Все сервисы запущены!"
 echo "🔒 Проверьте ваш IP: curl ipinfo.io"

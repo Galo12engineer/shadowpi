@@ -86,6 +86,8 @@ sa=$(panel start_all); sleep 3
 sa_err=$(R "/opt/shadowpi/scripts/start-all.sh 2>&1 | grep -E -i 'no such file|not found|bad argument|failed' | head -3")
 check B1 "'Start all' runs the whole start script" $(echo "$sa_err" | grep -q -i 'no such file'; [ $? != 0 ]; echo $?) "$(echo "$sa_err" | grep -i -m1 'no such file' || echo 'all steps found')"
 check B2 "'Start all' reports failure when steps fail" $( [ -n "$sa_err" ] && echo "$sa" | grep -q '"success":true'; [ $? != 0 ]; echo $?) "panel said $(echo "$sa" | grep -o '"success":[a-z]*'), script errors: $(echo $sa_err)"
+ws=$(panel wan_switch '&target=usb1')   # the lab router has no usb1
+check B4 "'Switch WAN' to a missing interface reports failure" $(echo "$ws" | grep -q '"success":false'; echo $?) "panel said $(echo "$ws" | grep -o '"success":[a-z]*'), default route still: $(R 'ip route show default | head -1')"
 got=$(site_from_client 8000); red=$(R "iptables -t nat -S PREROUTING | grep -c V2RAY")
 check X3 "'Start all' does not cut clients off when the proxy is not running" $([ "$got" = "$VPN_EXIT" ] && [ "$red" = 0 ]; echo $?) "website saw: $got; redirect rules applied: $red"
 dns=$(C "nslookup -timeout=3 example.com 10.0.0.1 2>&1 | grep -c 'Address: [0-9]' ")
