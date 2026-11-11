@@ -85,7 +85,7 @@ make lab-down     # видаляє лабораторію
 | P4 | FAIL | PASS | Новий ID сесії під час входу. Одна функція `start_secure_session()` для всіх точок входу: strict mode, `HttpOnly`, `SameSite=Strict`, `Secure` лише через HTTPS. |
 | P5, P6 | нові | PASS | Прапорці cookie; тайм-аут бездіяльності (`SESSION_LIFETIME`) і загальний термін життя, бо відкрита панель опитує сервер кожні 5 секунд і ніколи не простоює. |
 | P2 | FAIL | PASS | Невдалі входи рахуються в `/var/lib/shadowpi/login-attempts.json` (flock) за адресою клієнта, з блокуванням, що подвоюється, і загальним лічильником. Перевірка йде до пароля; якщо файл недоступний, вхід закривається. |
-| P7 | нова | **FAIL** | nginx basic auth перед панеллю використовує той самий пароль і не має блокування, тому P2 можна обійти через нього. Відкрито, див. план робіт. |
+| P7 | нова | PASS | nginx basic auth перед панеллю використовував той самий пароль і не мав блокування, тому P2 можна було обійти через нього. Спочатку записано як FAIL, потім шар nginx прибрано: єдиний вхід — логін панелі із серверним блокуванням. |
 | B2 | FAIL | PASS | `start-all.sh`, `stop-all.sh`, `restart-all.sh` завершуються з ненульовим кодом, якщо обов'язковий крок не вдався; API повертає цей код. `startWiFi` перевіряє і dnsmasq. |
 | B4 | нова | PASS | «Перемкнути WAN» повідомляє про помилку. Крім того, панель викликала `wan-switch.sh usb0`, що скрипт відхиляє; тепер викликається `wan-switch.sh switch usb0`. |
 | K3 | FAIL | замінено | Перевірка рахувала правила, у яких названо `usb0`/`eth1`/`enx*`. Політика DROP і так блокувала ці інтерфейси, витоку не було; справжня проблема була протилежною (див. K3b). Замінено на K3a і K3b, які перевіряють поведінку на dummy-інтерфейсах. |
@@ -126,7 +126,7 @@ make lab-down     # видаляє лабораторію
 | I3 | PASS | Panel API answers right after install (before reboot) |
 | P1 | PASS | API refuses requests without login |
 | P2 | PASS | 6 wrong passwords (new cookie each) lock the login |
-| P7 | **FAIL** | Panel password cannot be guessed without limit through nginx basic auth |
+| P7 | PASS | Panel password cannot be guessed without limit through nginx basic auth |
 | P3 | PASS | Write action without CSRF token is refused |
 | P4 | PASS | Session ID changes at login (no session fixation) |
 | P5 | PASS | Session cookie is HttpOnly and SameSite=Strict |
@@ -159,15 +159,15 @@ make lab-down     # видаляє лабораторію
 | K6 | PASS | VPN reconnects under the kill switch when 'remote' is a hostname |
 | K5 | PASS | After a reboot the kill switch is on before anything else starts |
 
-PASS 37 · FAIL 2 · 2026-11-11 10:09 UTC
+PASS 38 · FAIL 1 · 2026-11-11 10:41 UTC
 
-Два FAIL, що залишилися (P7, T1), відомі й залишені навмисно: лабораторія описує правильну
-поведінку, а проєкт її поки не забезпечує. Обидва є в [ROADMAP.ua.md](ROADMAP.ua.md).
+Єдиний FAIL, що залишився (T1), відомий і залишений навмисно: лабораторія описує правильну
+поведінку, а проєкт її поки не забезпечує. Він є в [ROADMAP.ua.md](ROADMAP.ua.md).
 
 Перебіг робіт: перший прогін 8 PASS / 16 FAIL → виправлення V1: 9 / 15 → виправлення шляхів і
 нова перевірка X3: 12 / 13 (25 перевірок) → виправлення V2Ray, плюс X4 і X5: 19 / 10
 (29 перевірок) → hotfix-раунд, плюс 12 нових перевірок і K3, розділена на дві:
-**37 PASS / 2 FAIL (39 перевірок)**.
+37 / 2 (39 перевірок) → прибрано nginx basic auth (P7): **38 PASS / 1 FAIL (39 перевірок)**.
 
 ## Історія: знахідки першого прогону (10.11.2026)
 

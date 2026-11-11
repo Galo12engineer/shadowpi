@@ -47,8 +47,6 @@ server {
     index index.php index.html;
     
     # Basic Authentication
-    auth_basic "ShadowPi Admin Panel";
-    auth_basic_user_file /etc/nginx/auth/htpasswd;
     
     # Логи
     access_log /var/log/nginx/anonrouter-access.log;
@@ -97,6 +95,8 @@ sudo systemctl restart nginx
 ### Создание пароля для веб-панели
 
 ```bash
+# NOTE: nginx basic auth is no longer used (it had no lockout and shared the panel password).
+# The htpasswd steps below are obsolete; the panel login in config.php is the only gate.
 # Создайте папку для htpasswd
 sudo mkdir -p /etc/nginx/auth
 

@@ -394,16 +394,10 @@ print_header "Установка Nginx и PHP"
 
 apt install -y nginx php-fpm php-cli php-common
 
-# Генерация хеша пароля
-# The password goes in on stdin, not as an argument: arguments of a running process are
-# visible to every local user in "ps".
-WEB_PASSWORD_HASH=$(printf '%s' "$WEB_PASSWORD" | openssl passwd -apr1 -stdin)
-
-# Создание htpasswd файла (читать может только nginx)
-mkdir -p /etc/nginx/auth
-echo "admin:$WEB_PASSWORD_HASH" > /etc/nginx/auth/htpasswd
-chown root:www-data /etc/nginx/auth/htpasswd
-chmod 0640 /etc/nginx/auth/htpasswd
+# No nginx basic auth in front of the panel. It used the same password as the panel login
+# but had no lockout, so the password could be guessed through it without limit. The PHP
+# login (server-side lockout, see web-ui/config.php) is the only gate now.
+rm -f /etc/nginx/auth/htpasswd
 
 # Nginx конфигурация для веб-панели
 cat > /etc/nginx/sites-available/shadowpi << 'EOF'
@@ -413,10 +407,6 @@ server {
 
     root /var/www/shadowpi;
     index index.php index.html;
-    
-    # Basic auth
-    auth_basic "ShadowPi Admin";
-    auth_basic_user_file /etc/nginx/auth/htpasswd;
     
     location / {
         try_files $uri $uri/ =404;

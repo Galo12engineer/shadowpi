@@ -84,7 +84,7 @@ Each fix was followed by a full lab run from scratch. "Before" is the first-run 
 | P4 | FAIL | PASS | New session ID at login. One `start_secure_session()` for all entry points: strict mode, `HttpOnly`, `SameSite=Strict`, `Secure` only over HTTPS. |
 | P5, P6 | new | PASS | Cookie flags; idle timeout (`SESSION_LIFETIME`) and an absolute lifetime, because the open panel polls every 5 s and would never go idle. |
 | P2 | FAIL | PASS | Failed logins are counted in `/var/lib/shadowpi/login-attempts.json` (flock) per client address, with a doubling lockout and a global counter. Checked before the password; fails closed if the file cannot be used. |
-| P7 | new | **FAIL** | nginx basic auth in front of the panel uses the same password and has no lockout, so P2 can be bypassed through it. Open, see the roadmap. |
+| P7 | new | PASS | nginx basic auth in front of the panel used the same password and had no lockout, so P2 could be bypassed through it. First recorded as a FAIL, then the nginx layer was removed: the panel login with its server-side lockout is the only gate. |
 | B2 | FAIL | PASS | `start-all.sh`, `stop-all.sh`, `restart-all.sh` exit non-zero when a required step fails; the API returns that exit code. `startWiFi` checks dnsmasq too. |
 | B4 | new | PASS | "Switch WAN" reports failure. It also called `wan-switch.sh usb0`, which the script rejects; it now calls `wan-switch.sh switch usb0`. |
 | K3 | FAIL | replaced | The check counted rules that name `usb0`/`eth1`/`enx*`. The DROP policy already blocked those interfaces, so there was no leak; the real problem was the opposite (see K3b). Replaced by K3a and K3b, which test behaviour on dummy interfaces. |
@@ -124,7 +124,7 @@ every line (what the website saw, what the panel answered) is in `lab/out/result
 | I3 | PASS | Panel API answers right after install (before reboot) |
 | P1 | PASS | API refuses requests without login |
 | P2 | PASS | 6 wrong passwords (new cookie each) lock the login |
-| P7 | **FAIL** | Panel password cannot be guessed without limit through nginx basic auth |
+| P7 | PASS | Panel password cannot be guessed without limit through nginx basic auth |
 | P3 | PASS | Write action without CSRF token is refused |
 | P4 | PASS | Session ID changes at login (no session fixation) |
 | P5 | PASS | Session cookie is HttpOnly and SameSite=Strict |
@@ -157,12 +157,12 @@ every line (what the website saw, what the panel answered) is in `lab/out/result
 | K6 | PASS | VPN reconnects under the kill switch when 'remote' is a hostname |
 | K5 | PASS | After a reboot the kill switch is on before anything else starts |
 
-PASS 37 · FAIL 2 · 2026-11-11 10:09 UTC
+PASS 38 · FAIL 1 · 2026-11-11 10:41 UTC
 
-The 2 remaining FAILs (P7, T1) are known and deliberate: the lab states the correct
-behaviour and the project does not do it yet. Both are in [ROADMAP.md](ROADMAP.md).
+The one remaining FAIL (T1) is known and deliberate: the lab states the correct behaviour
+and the project does not do it yet. It is in [ROADMAP.md](ROADMAP.md).
 
-Progress: first run 8 PASS / 16 FAIL → V1 fix 9 / 15 → path fix, plus the new check X3: 12 / 13 (25 checks) → V2Ray fix, plus X4 and X5: 19 / 10 (29 checks) → hotfix round, plus 12 new checks and K3 split in two: **37 PASS / 2 FAIL (39 checks)**.
+Progress: first run 8 PASS / 16 FAIL → V1 fix 9 / 15 → path fix, plus the new check X3: 12 / 13 (25 checks) → V2Ray fix, plus X4 and X5: 19 / 10 (29 checks) → hotfix round, plus 12 new checks and K3 split in two: 37 / 2 (39 checks) → nginx basic auth removed (P7): **38 PASS / 1 FAIL (39 checks)**.
 
 ## History: findings from the first run (10.11.2026)
 

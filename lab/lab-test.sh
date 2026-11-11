@@ -41,7 +41,7 @@ R "LAB_BAD_V2RAYA_SHA=1 lab-install.sh" > out/install.log 2>&1; rc=$?
 v2=$(R "dpkg-query -W v2raya >/dev/null 2>&1 && echo installed || echo 'not installed'")
 check I2 "Installer refuses v2rayA with a wrong SHA-256 and still finishes" $([ "$rc" = 0 ] && [ "$v2" = "not installed" ]; echo $?) "exit $rc; v2rayA: $v2; $(grep -m1 -o 'SHA-256[^—]*' out/install.log); last line: $(tail -1 out/install.log)"
 shown=$(cat out/install-as-is.log out/install.log | grep -c -E 'labwifi123|labpanel123')
-modes=$(R "stat -c '%a %U:%G %n' /etc/hostapd/hostapd.conf /etc/nginx/auth/htpasswd /var/www/shadowpi/config.php | tr '\n' ' '")
+modes=$(R "stat -c '%a %U:%G %n' /etc/hostapd/hostapd.conf /var/www/shadowpi/config.php | tr '\n' ' '")
 check I5 "Installer does not print the Wi-Fi or panel password, and keeps them in non-world-readable files" $([ "$shown" = 0 ] && ! echo "$modes" | grep -q -E '(^| )[0-7][0-7][1-7] '; echo $?) "lines of installer output containing a password: $shown; files: $modes"
 code=$(R "curl -s -o /dev/null -w '%{http_code}' -u admin:labpanel123 'http://10.0.0.1:8080/api.php?action=vpn_status'")
 check I3 "Panel API answers right after install (before reboot)" $([ "$code" = 401 ] || [ "$code" = 200 ]; echo $?) "HTTP $code (php-fpm: $(R 'systemctl is-active php8.2-fpm'))"
@@ -57,7 +57,8 @@ check P2 "6 wrong passwords (new cookie each) lock the login" $(echo "$lock" | g
 # The lockout is now per client address and every lab request comes from the same address,
 # so the next logins would be refused for LOCKOUT_TIME. Removing the counter file = waiting 5 minutes.
 R "rm -f /var/lib/shadowpi/login-attempts.json"
-# nginx basic auth in front of the panel uses the SAME password. If nginx still tells a right
+# The panel used to sit behind nginx basic auth with the SAME password and no lockout; that
+# layer was removed. The check stays so it cannot come back: if nginx tells a right
 # password from a wrong one after many failures, the lockout above can be bypassed through it.
 ba=$(R "for i in \$(seq 30); do curl -s -o /dev/null -u admin:wrong\$i http://10.0.0.1:8080/; done
         echo \"wrong=\$(curl -s -o /dev/null -w '%{http_code}' -u admin:wrong31 http://10.0.0.1:8080/) right=\$(curl -s -o /dev/null -w '%{http_code}' -u admin:labpanel123 http://10.0.0.1:8080/)\"")
@@ -122,7 +123,7 @@ for p in 80 443 8000; do
   check "X2.$p" "Client → site:$p goes through V2Ray, then the VPN" $([ "$got" = "$VPN_EXIT" ] && [ "${seen:-0}" -ge 1 ]; echo $?) "website saw: $got; Xray access log entries: $seen"
 done
 code=$(C "curl -s -o /dev/null -w '%{http_code}' -m5 http://10.0.0.1:8080/")
-check X5 "Panel on the router stays reachable (not sent to the proxy)" $([ "$code" = 401 ]; echo $?) "HTTP $code (401 = nginx basic auth answered)"
+check X5 "Panel on the router stays reachable (not sent to the proxy)" $([ "$code" = 200 ]; echo $?) "HTTP $code (200 = nginx on the router served the panel page)"
 R "/opt/shadowpi/scripts/killswitch.sh >/dev/null 2>&1"   # back to a clean ruleset
 
 echo "== Kill switch: VPN stopped from the panel"
