@@ -16,7 +16,7 @@ check() { # $1 id, $2 description, $3 0=ok, $4 evidence
 }
 site_from_client() { C "curl -s -m 6 http://$SITE:$1/ || echo none"; }
 panel() { # $1 action, $2 extra POST data; logs in once, uses CSRF for writes
-  R "J=/tmp/jar; B='-s -m 90 -u admin:labpanel123 -c \$J -b \$J'
+  R "J=/tmp/jar; B=\"-s -m 90 -u admin:labpanel123 -c \$J -b \$J\"
      [ -s \$J ] || curl \$B -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null
      T=\$(curl \$B 'http://10.0.0.1:8080/api.php?action=get_csrf' | sed 's/.*\"token\":\"\([^\"]*\)\".*/\1/')
      curl \$B -X POST -d \"action=$1&csrf_token=\$T${2:-}\" http://10.0.0.1:8080/api.php"; }
@@ -51,13 +51,24 @@ out=$(R "J=/tmp/j2; curl -s -u admin:labpanel123 -c \$J -b \$J -X POST -d 'actio
 check P3 "Write action without CSRF token is refused" $(echo "$out" | grep -q 'Invalid CSRF'; echo $?) "$out"
 sess=$(R "J=/tmp/j3; curl -s -u admin:labpanel123 -c \$J 'http://10.0.0.1:8080/auth.php?action=check' >/dev/null; a=\$(awk '/shadowpi_session/{print \$7}' \$J); curl -s -u admin:labpanel123 -b \$J -c \$J -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null; b=\$(awk '/shadowpi_session/{print \$7}' \$J); [ \"\$a\" != \"\$b\" ] && echo changed || echo same")
 check P4 "Session ID changes at login (no session fixation)" $([ "$sess" = changed ]; echo $?) "session id $sess"
+hdr=$(R "curl -s -D - -o /dev/null -u admin:labpanel123 'http://10.0.0.1:8080/auth.php?action=check' | grep -i '^set-cookie' | tr -d '\r'")
+check P5 "Session cookie is HttpOnly and SameSite=Strict" $(echo "$hdr" | grep -qi 'httponly' && echo "$hdr" | grep -qi 'samesite=strict'; echo $?) "${hdr:-no Set-Cookie header}"
+# Idle timeout: instead of waiting SESSION_LIFETIME (1 h), the session's last_activity is set to
+# 1970 in PHP's session file. "before" proves the session was logged in, so the check cannot
+# pass just because the login failed.
+idle=$(R "J=/tmp/j4; B=\"-s -u admin:labpanel123 -c \$J -b \$J\"
+  curl \$B -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null
+  echo \"before: \$(curl \$B 'http://10.0.0.1:8080/api.php?action=tor_status')\"
+  sed -i 's/last_activity|i:[0-9]*/last_activity|i:1/' /var/lib/php/sessions/sess_\$(awk '/shadowpi_session/{print \$7}' \$J) 2>&1
+  echo \"after: \$(curl \$B 'http://10.0.0.1:8080/api.php?action=tor_status')\"")
+check P6 "Idle session expires (SESSION_LIFETIME)" $(echo "$idle" | grep -q 'before: {"active"' && echo "$idle" | grep -q 'after: .*Authentication required'; echo $?) "$(echo $idle)"
 
 echo "== VPN configured exactly as docs/03_OPENVPN_SETUP.md says"
 R "lab-vpn-setup.sh && systemctl start openvpn-windscribe && /opt/shadowpi/scripts/killswitch.sh" > out/vpn-ks.log 2>&1
 sleep 8
 got=$(site_from_client 8000)
 check V1 "Client reaches the internet through the VPN (docs config)" $([ "$got" = "$VPN_EXIT" ]; echo $?) "website saw: $got"
-ip=$(R "J=/tmp/jv; rm -f \$J; B='-s -u admin:labpanel123 -c \$J -b \$J'; curl \$B -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null; curl \$B 'http://10.0.0.1:8080/api.php?action=vpn_status'; echo; ls /opt/shadowpi/status/ /opt/anon-router/status/ 2>&1 | tr '\n' ' '")
+ip=$(R "J=/tmp/jv; rm -f \$J; B=\"-s -u admin:labpanel123 -c \$J -b \$J\"; curl \$B -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null; curl \$B 'http://10.0.0.1:8080/api.php?action=vpn_status'; echo; ls /opt/shadowpi/status/ /opt/anon-router/status/ 2>&1 | tr '\n' ' '")
 check V2 "Panel shows the VPN IP" $(echo "$ip" | grep -q '"ip":"10\.8'; echo $?) "$ip"
 
 for p in 80 8000; do got=$(site_from_client $p); check "V3.$p" "Client → site:$p goes through the VPN" $([ "$got" = "$VPN_EXIT" ]; echo $?) "website saw: $got"; done

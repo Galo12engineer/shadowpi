@@ -5,11 +5,10 @@
  * With authentication, CSRF protection, and logging
  */
 
-// Initialize session and config
-session_name('shadowpi_session');
-session_start();
-
+// Config, then the hardened session (cookie flags, idle timeout)
 require_once 'config.php';
+
+start_secure_session();
 
 // Set security headers
 set_security_headers();

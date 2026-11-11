@@ -3,10 +3,9 @@
  * ShadowPi - Authentication Handler
  */
 
-session_name('shadowpi_session');
-session_start();
-
 require_once 'config.php';
+
+start_secure_session();
 
 set_security_headers();
 
@@ -28,9 +27,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Validate credentials
         if ($username === AUTH_USERNAME && password_verify($password, AUTH_PASSWORD_HASH)) {
+            // New session ID at the privilege change: an ID planted before login
+            // (session fixation) is worthless afterwards. true = delete the old session.
+            session_regenerate_id(true);
+            unset($_SESSION[CSRF_TOKEN_NAME]);
+
             $_SESSION['authenticated'] = true;
             $_SESSION['username'] = $username;
             $_SESSION['login_time'] = time();
+            $_SESSION['last_activity'] = time();
 
             // Clear failed attempts
             unset($_SESSION['failed_attempts']);
@@ -57,6 +62,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'logout') {
         log_action('LOGOUT', 'User logged out');
+        $_SESSION = [];
+        $p = session_get_cookie_params();
+        setcookie(session_name(), '', [
+            'expires' => time() - 3600, 'path' => $p['path'], 'secure' => $p['secure'],
+            'httponly' => $p['httponly'], 'samesite' => $p['samesite'],
+        ]);
         session_destroy();
         echo json_encode(['success' => true, 'redirect' => 'login.html']);
         exit;

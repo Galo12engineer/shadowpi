@@ -6,7 +6,9 @@
 
 // Session configuration
 define('SESSION_NAME', 'shadowpi_session');
-define('SESSION_LIFETIME', 3600); // 1 hour
+define('SESSION_LIFETIME', 3600);  // idle timeout: 1 hour without any request
+define('SESSION_MAX_AGE', 43200);  // absolute cap: 12 hours after login, even if the open
+                                   // panel tab keeps polling (polling counts as activity)
 
 // Authentication
 define('AUTH_USERNAME', 'admin');
@@ -65,6 +67,40 @@ function verify_csrf_token($token) {
 // Input sanitization
 function sanitize_input($input) {
     return htmlspecialchars(strip_tags(trim($input)), ENT_QUOTES, 'UTF-8');
+}
+
+// Start the session with hardened cookie settings and enforce the timeouts.
+// Every entry point (auth.php, api.php) must call this instead of session_start().
+function start_secure_session() {
+    // The panel is served over plain HTTP on the hotspot (HTTPS is on the roadmap), so the
+    // Secure flag can only be set when the request really came over TLS.
+    $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+
+    ini_set('session.use_strict_mode', '1');   // refuse session IDs the server did not issue
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.gc_maxlifetime', (string) SESSION_MAX_AGE);
+
+    session_name(SESSION_NAME);
+    session_set_cookie_params([
+        'lifetime' => 0,          // session cookie: gone when the browser closes
+        'path'     => '/',
+        'secure'   => $https,
+        'httponly' => true,       // not readable from JavaScript
+        'samesite' => 'Strict',   // not sent on cross-site requests
+    ]);
+    session_start();
+
+    if (!empty($_SESSION['authenticated'])) {
+        $now  = time();
+        $idle = $now - (int) ($_SESSION['last_activity'] ?? 0);
+        $age  = $now - (int) ($_SESSION['login_time'] ?? 0);
+        if ($idle > SESSION_LIFETIME || $age > SESSION_MAX_AGE) {
+            $_SESSION = [];
+            session_regenerate_id(true);
+        } else {
+            $_SESSION['last_activity'] = $now;
+        }
+    }
 }
 
 // Check if user is authenticated
