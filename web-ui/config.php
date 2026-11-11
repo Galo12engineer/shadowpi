@@ -21,9 +21,15 @@ define('CSRF_TOKEN_NAME', 'shadowpi_csrf');
 define('SCRIPTS_PATH', '/opt/shadowpi/');
 define('LOG_FILE', '/var/log/shadowpi/panel.log');
 
-// Rate limiting
-define('MAX_LOGIN_ATTEMPTS', 5);
-define('LOCKOUT_TIME', 300); // 5 minutes
+// Login throttling. The counters live in a file on the server, NOT in the session:
+// an attacker simply drops the session cookie, so a session counter never counts.
+define('LOGIN_ATTEMPTS_FILE', '/var/lib/shadowpi/login-attempts.json');
+define('MAX_LOGIN_ATTEMPTS', 5);          // failures from one address before it is locked
+define('LOCKOUT_TIME', 300);              // first lock: 5 minutes, doubles on every repeat
+define('LOCKOUT_MAX', 3600);              // ...up to 1 hour
+define('LOGIN_WINDOW', 900);              // failures older than 15 minutes are forgotten
+define('GLOBAL_MAX_LOGIN_ATTEMPTS', 30);  // failures from ALL addresses together: a hotspot
+                                          // client can change its IP, so per-address is not enough
 
 // API settings
 define('API_RATE_LIMIT', 60); // requests per minute
@@ -67,6 +73,90 @@ function verify_csrf_token($token) {
 // Input sanitization
 function sanitize_input($input) {
     return htmlspecialchars(strip_tags(trim($input)), ENT_QUOTES, 'UTF-8');
+}
+
+// ---- Login throttling -------------------------------------------------------------------
+// One JSON file, guarded by flock: { "<ip>": {count, first, lock_until, lockouts, seen}, "*": {...} }
+// "*" counts failures from all addresses together.
+
+// Runs $fn(array &$data) under an exclusive lock and saves the result.
+// Returns $fn's value, or null when the store cannot be used.
+function login_attempts_locked(callable $fn) {
+    $fh = @fopen(LOGIN_ATTEMPTS_FILE, 'c+');
+    if (!$fh) {
+        return null;
+    }
+    if (!flock($fh, LOCK_EX)) {
+        fclose($fh);
+        return null;
+    }
+    $data = json_decode(stream_get_contents($fh) ?: '', true);
+    if (!is_array($data)) {
+        $data = [];
+    }
+    $now = time();
+    foreach ($data as $key => $e) {       // forget entries that no longer matter
+        if (($e['lock_until'] ?? 0) < $now && ($e['seen'] ?? 0) < $now - 86400) {
+            unset($data[$key]);
+        }
+    }
+    $result = $fn($data);
+    ftruncate($fh, 0);
+    rewind($fh);
+    fwrite($fh, json_encode($data));
+    fflush($fh);
+    flock($fh, LOCK_UN);
+    fclose($fh);
+    return $result;
+}
+
+// Seconds the address still has to wait; 0 = may try; null = store unusable (caller fails closed).
+function login_lock_remaining($ip) {
+    return login_attempts_locked(function (&$data) use ($ip) {
+        $now = time();
+        $left = 0;
+        foreach ([$ip, '*'] as $key) {
+            $left = max($left, ($data[$key]['lock_until'] ?? 0) - $now);
+        }
+        return $left;
+    });
+}
+
+// Counts one failed login for the address and for everybody ("*").
+// Returns the lock in seconds if this failure triggered one, else 0.
+function login_register_failure($ip) {
+    return login_attempts_locked(function (&$data) use ($ip) {
+        $now = time();
+        $locked = 0;
+        foreach ([$ip => MAX_LOGIN_ATTEMPTS, '*' => GLOBAL_MAX_LOGIN_ATTEMPTS] as $key => $limit) {
+            $e = $data[$key] ?? ['count' => 0, 'first' => $now, 'lock_until' => 0, 'lockouts' => 0];
+            if ($e['first'] < $now - LOGIN_WINDOW) {
+                $e['count'] = 0;
+                $e['first'] = $now;
+            }
+            $e['count']++;
+            $e['seen'] = $now;
+            if ($e['count'] >= $limit) {
+                $lock = min(LOCKOUT_TIME * (2 ** $e['lockouts']), LOCKOUT_MAX);   // backoff
+                $e['lock_until'] = $now + $lock;
+                $e['lockouts'] = min($e['lockouts'] + 1, 10);
+                $e['count'] = 0;
+                $e['first'] = $now;
+                $locked = max($locked, $lock);
+            }
+            $data[$key] = $e;
+        }
+        return $locked;
+    });
+}
+
+// Successful login: forget this address. The global counter is left alone on purpose,
+// otherwise one valid login would reset an ongoing attack from other addresses.
+function login_clear_failures($ip) {
+    login_attempts_locked(function (&$data) use ($ip) {
+        unset($data[$ip]);
+        return true;
+    });
 }
 
 // Start the session with hardened cookie settings and enforce the timeouts.

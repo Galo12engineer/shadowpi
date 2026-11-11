@@ -47,6 +47,14 @@ out=$(R "curl -s -u admin:labpanel123 -X POST -d 'action=vpn_status' http://10.0
 lock=$(R "for i in 1 2 3 4 5 6; do curl -s -u admin:labpanel123 -X POST -d 'action=login&username=admin&password=wrong\$i' http://10.0.0.1:8080/auth.php >/dev/null; done
           curl -s -u admin:labpanel123 -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php")
 check P2 "6 wrong passwords (new cookie each) lock the login" $(echo "$lock" | grep -q '"success":true'; [ $? != 0 ]; echo $?) "after 6 failures the correct password still gives: $lock"
+# The lockout is now per client address and every lab request comes from the same address,
+# so the next logins would be refused for LOCKOUT_TIME. Removing the counter file = waiting 5 minutes.
+R "rm -f /var/lib/shadowpi/login-attempts.json"
+# nginx basic auth in front of the panel uses the SAME password. If nginx still tells a right
+# password from a wrong one after many failures, the lockout above can be bypassed through it.
+ba=$(R "for i in \$(seq 30); do curl -s -o /dev/null -u admin:wrong\$i http://10.0.0.1:8080/; done
+        echo \"wrong=\$(curl -s -o /dev/null -w '%{http_code}' -u admin:wrong31 http://10.0.0.1:8080/) right=\$(curl -s -o /dev/null -w '%{http_code}' -u admin:labpanel123 http://10.0.0.1:8080/)\"")
+check P7 "Panel password cannot be guessed without limit through nginx basic auth" $([ "${ba#wrong=}" != "$ba" ] && [ "$(echo "$ba" | sed 's/wrong=\([0-9]*\).*/\1/')" = "$(echo "$ba" | sed 's/.*right=//')" ]; echo $?) "after 30 failures nginx answers: $ba (different codes = it still confirms the right password)"
 out=$(R "J=/tmp/j2; curl -s -u admin:labpanel123 -c \$J -b \$J -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null; curl -s -u admin:labpanel123 -b \$J -X POST -d 'action=tor_start' http://10.0.0.1:8080/api.php")
 check P3 "Write action without CSRF token is refused" $(echo "$out" | grep -q 'Invalid CSRF'; echo $?) "$out"
 sess=$(R "J=/tmp/j3; curl -s -u admin:labpanel123 -c \$J 'http://10.0.0.1:8080/auth.php?action=check' >/dev/null; a=\$(awk '/shadowpi_session/{print \$7}' \$J); curl -s -u admin:labpanel123 -b \$J -c \$J -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null; b=\$(awk '/shadowpi_session/{print \$7}' \$J); [ \"\$a\" != \"\$b\" ] && echo changed || echo same")

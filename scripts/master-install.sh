@@ -400,6 +400,9 @@ mkdir -p /var/log/shadowpi
 chown -R $SUDO_USER:$SUDO_USER /opt/shadowpi
 chown -R www-data:www-data /var/log/shadowpi
 
+# Panel state that only PHP may read or write (failed-login counters for the lockout)
+install -d -o www-data -g www-data -m 0700 /var/lib/shadowpi
+
 print_success "Структура каталогов создана"
 
 ###############################################################################
