@@ -216,19 +216,59 @@ print_header "Установка XRay и v2rayA"
 print_info "Установка XRay core..."
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
 
-# v2rayA (Web UI)
-print_info "Установка v2rayA..."
-wget -qO - https://apt.v2raya.org/key/public-key.asc | tee /etc/apt/trusted.gpg.d/v2raya.asc
+# v2rayA is a web UI for Xray. It is OPTIONAL: the VPN, the kill switch and the panel work
+# without it, so a failure here must never stop the install.
+#
+# It is not installed from apt.v2raya.org: that repository serves a certificate chain
+# Debian does not trust, and TLS verification is NOT switched off to get around it
+# (no "[trusted=yes]", no "--allow-insecure"). A pinned release is downloaded from GitHub
+# instead and installed only if its SHA-256 matches the value below.
+# To update: change the version and all three hashes together (they are published on
+# https://github.com/v2rayA/v2rayA/releases next to each .deb).
+V2RAYA_VERSION="2.5.10"
+V2RAYA_SHA256_arm64="c4ad561ba36df480222552e3595103ac4ae54d29141c6b03d53edab96ea15f67"
+V2RAYA_SHA256_armv7="f8eac31beee5a70340d9593cb3ed5bd6c5759a083ed21e49a9f0889c0d7aa31d"
+V2RAYA_SHA256_x64="7fa33efac93296708133dc09240ac035f4df2b38bbaf2b30cc9c385b58b488b1"
+V2RAYA_INSTALLED=false
 
-echo "deb https://apt.v2raya.org/ v2raya main" | tee /etc/apt/sources.list.d/v2raya.list
+install_v2raya() {
+    local build sha_var sha url tmp
+    case "$(dpkg --print-architecture)" in
+        arm64) build=arm64 ;;
+        armhf) build=armv7 ;;
+        amd64) build=x64 ;;
+        *)     print_warning "Для этой архитектуры нет закреплённой сборки v2rayA"; return 1 ;;
+    esac
+    sha_var="V2RAYA_SHA256_$build"
+    sha="${!sha_var}"
+    url="https://github.com/v2rayA/v2rayA/releases/download/v${V2RAYA_VERSION}/installer_debian_${build}_${V2RAYA_VERSION}.deb"
+    tmp=$(mktemp -d)
 
-apt update
-apt install -y v2raya
+    if ! curl -fsSL --retry 2 -o "$tmp/v2raya.deb" "$url"; then
+        print_warning "Не удалось скачать v2rayA: $url"
+        rm -rf "$tmp"; return 1
+    fi
+    if ! echo "$sha  $tmp/v2raya.deb" | sha256sum -c --quiet - >/dev/null 2>&1; then
+        print_error "SHA-256 пакета v2rayA не совпадает с ожидаемым — пакет НЕ установлен"
+        rm -rf "$tmp"; return 1
+    fi
+    if ! apt install -y "$tmp/v2raya.deb"; then
+        print_warning "apt не смог установить пакет v2rayA"
+        rm -rf "$tmp"; return 1
+    fi
+    rm -rf "$tmp"
+}
 
-systemctl enable v2raya
-systemctl start v2raya
-
-print_success "XRay и v2rayA установлены"
+print_info "Установка v2rayA ${V2RAYA_VERSION} (опционально)..."
+if install_v2raya; then
+    V2RAYA_INSTALLED=true
+    systemctl enable v2raya
+    systemctl start v2raya || print_warning "v2rayA установлен, но не запустился: journalctl -u v2raya"
+    print_success "XRay и v2rayA установлены"
+else
+    print_warning "v2rayA НЕ установлен. Установка продолжается: VPN, kill switch и панель работают без него."
+    print_warning "XRay core установлен; настроить прокси вручную: docs/04_V2RAY_SETUP.md"
+fi
 
 ###############################################################################
 # Установка Tor (опционально)
@@ -508,7 +548,11 @@ echo "   Панель управления: http://anonrouter.local:8080"
 echo "     Логин: admin"
 echo "     Пароль: $WEB_PASSWORD"
 echo ""
-echo "   v2rayA (прокси): http://anonrouter.local:2017"
+if [ "$V2RAYA_INSTALLED" = true ]; then
+    echo "   v2rayA (прокси): http://anonrouter.local:2017"
+else
+    echo "   v2rayA: НЕ установлен (необязательный компонент, см. предупреждение выше)"
+fi
 echo ""
 echo -e "${BLUE}📋 Следующие шаги:${NC}"
 echo "   1. Скопируйте Windscribe .ovpn конфиг:"
@@ -517,12 +561,10 @@ echo ""
 echo "   2. Настройте OpenVPN:"
 echo "      Смотрите docs/03_OPENVPN_SETUP.md"
 echo ""
-echo "   3. Добавьте прокси в v2rayA:"
-echo "      Откройте http://anonrouter.local:2017"
+echo "   3. (необязательно) Добавьте прокси: docs/04_V2RAY_SETUP.md"
 echo ""
 echo "   4. Запустите систему:"
 echo "      sudo systemctl start openvpn-windscribe"
-echo "      sudo systemctl start v2raya"
 echo "      sudo systemctl start hostapd"
 echo "      sudo systemctl start dnsmasq"
 echo ""

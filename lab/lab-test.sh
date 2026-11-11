@@ -29,12 +29,15 @@ R "chmod 755 /usr/local/sbin/lab-*.sh; lab-netprep.sh" >/dev/null
 echo "== Running the real master-install.sh (a few minutes)"
 R "lab-install.sh" > out/install-as-is.log 2>&1; rc=$?
 check I1 "Installer finishes on Debian bookworm arm64" $rc "exit $rc; $(grep -m1 -o 'Certificate verification failed[^.]*' out/install-as-is.log)"
-echo "   retrying with the v2rayA block removed (lab copy only)"
+v2=$(R "dpkg-query -W -f='\${Version}' v2raya 2>/dev/null || echo 'not installed'"); v2s=$(R "systemctl is-active v2raya")
+check I4 "v2rayA is installed from the pinned release (SHA-256 checked) and runs" $([ "$v2" != "not installed" ] && [ "$v2s" = active ]; echo $?) "package: $v2, service: $v2s"
+echo "   second install: v2rayA made uninstallable by a wrong checksum (lab copy only)"
 docker compose up -d --force-recreate router >/dev/null 2>&1; sleep 6
 for i in $(seq 30); do [ "$(R 'systemctl is-system-running' 2>/dev/null)" = running ] && break; sleep 2; done
 R "chmod 755 /usr/local/sbin/lab-*.sh; lab-netprep.sh" >/dev/null
-R "LAB_SKIP_V2RAYA=1 lab-install.sh" > out/install.log 2>&1; rc=$?
-check I2 "Installer finishes without v2rayA" $rc "exit $rc; $(tail -1 out/install.log)"
+R "LAB_BAD_V2RAYA_SHA=1 lab-install.sh" > out/install.log 2>&1; rc=$?
+v2=$(R "dpkg-query -W v2raya >/dev/null 2>&1 && echo installed || echo 'not installed'")
+check I2 "Installer refuses v2rayA with a wrong SHA-256 and still finishes" $([ "$rc" = 0 ] && [ "$v2" = "not installed" ]; echo $?) "exit $rc; v2rayA: $v2; $(grep -m1 -o 'SHA-256[^—]*' out/install.log); last line: $(tail -1 out/install.log)"
 code=$(R "curl -s -o /dev/null -w '%{http_code}' -u admin:labpanel123 'http://10.0.0.1:8080/api.php?action=vpn_status'")
 check I3 "Panel API answers right after install (before reboot)" $([ "$code" = 401 ] || [ "$code" = 200 ]; echo $?) "HTTP $code (php-fpm: $(R 'systemctl is-active php8.2-fpm'))"
 R "LAB_ISP=1 lab-netprep.sh" >/dev/null
