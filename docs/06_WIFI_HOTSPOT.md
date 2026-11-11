@@ -172,6 +172,10 @@ dhcp-authoritative
 #   sudo systemctl stop dnsmasq && sudo dnsmasq -d -q   (Ctrl+C, then start the service again)
 quiet-dhcp
 
+# Listen only on the hotspot's own address. Without this dnsmasq binds port 53 on ALL
+# addresses and fails to start ("Address already in use") when systemd-resolved is running.
+bind-dynamic
+
 # Игнорировать resolv.conf (используем наши DNS)
 no-resolv
 

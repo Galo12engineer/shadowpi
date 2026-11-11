@@ -283,6 +283,12 @@ server=8.8.8.8
 # No query logging: a privacy router must not keep a record of what clients resolve.
 # (Do not add log-queries / log-dhcp here; for debugging run dnsmasq by hand with -q.)
 quiet-dhcp
+
+# Listen only on the hotspot's own address. By default dnsmasq binds port 53 on ALL
+# addresses, which fails ("Address already in use") when systemd-resolved is running: it
+# holds 127.0.0.53:53, and it is installed together with openvpn-systemd-resolved.
+# bind-dynamic (not bind-interfaces) also copes with wlan0 getting its address later.
+bind-dynamic
 EOF
 
 # hostapd конфигурация
