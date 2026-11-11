@@ -121,10 +121,39 @@ panel vpn_stop >/dev/null; sleep 4
 for p in 80 8000; do got=$(site_from_client $p); check "K1.$p" "VPN down: client cannot reach site:$p" $([ "$got" = none ]; echo $?) "website saw: $got"; done
 got=$(R "curl -s -m5 http://$SITE:443/ || echo none")
 check K2 "VPN down: router itself cannot reach the internet on tcp/443" $([ "$got" = none ]; echo $?) "website saw: $got (real WAN IP is $ROUTER_WAN)"
-cov=$(R "iptables -S OUTPUT | grep -c -E -- '-o (usb0|usb1|eth1|enx)'")
-check K3 "Kill switch also covers the 4G interfaces wan-switch.sh uses" $([ "${cov:-0}" -gt 0 ]; echo $?) "rules for usb0/usb1/eth1/enx*: $cov (only eth0 and wwan0 are covered)"
+# 4G interfaces. The old K3 counted rules that NAME usb0/eth1/enx*. That was the wrong question:
+# the DROP policy already blocks those interfaces without naming them, and a correct
+# "everything that is not the tunnel is dropped" rule set would never pass a name count.
+# K3a/K3b test behaviour instead, on dummy interfaces with the names wan-switch.sh uses.
+leak_bad=0; hs_bad=0; leak_ev=""; hs_ev=""
+for ifc in usb0 eth1 enx001122334455; do
+  R "lab-4g.sh up $ifc"
+  ctl=$(R "lab-4g.sh control $ifc"); before=$(R "lab-4g.sh tx $ifc")
+  R "curl -s -m2 http://203.0.113.5:443/ >/dev/null; curl -s -m2 http://203.0.113.5/ >/dev/null; (echo x > /dev/udp/203.0.113.5/53) 2>/dev/null; true"
+  C "curl -s -m2 http://203.0.113.5:8000/ >/dev/null; true"
+  leaked=$(( $(R "lab-4g.sh tx $ifc") - before )); hs=$(R "lab-4g.sh handshake $ifc")
+  R "lab-4g.sh down $ifc"
+  [ "$ctl" = 1 ] && [ "$leaked" = 0 ] || leak_bad=1
+  [ "${hs:-0}" -ge 1 ] || hs_bad=1
+  leak_ev="$leak_ev $ifc: control=$ctl leaked=$leaked;"; hs_ev="$hs_ev $ifc: $hs;"
+done
+check K3a "VPN down: nothing leaves through a 4G interface (usb0, eth1, enx*)" $leak_bad "packets from router and client that left:$leak_ev control=1 proves the counter works"
+check K3b "VPN handshake is allowed through a 4G interface (so failover can bring the VPN up)" $hs_bad "packets to the VPN server port that left:$hs_ev"
 v6=$(R "sysctl -n net.ipv6.conf.all.disable_ipv6; ip6tables -S | grep -c -- '-P .* DROP'")
 check K4 "IPv6 disabled and blocked" $(echo "$v6" | tr '\n' ' ' | grep -q '^1 3'; echo $?) "disable_ipv6 / DROP policies: $(echo $v6)"
+
+echo "== Kill switch with a hostname in 'remote' (what real provider configs use)"
+# The lab config has an IP in 'remote'; Windscribe's .ovpn files have a hostname. The website
+# container also runs a DNS server that knows vpn.lab.test. It stands in for a public resolver:
+# reachable only over the WAN, so the kill switch must block it while the VPN is down.
+# The VPN is still stopped here (see K1), and the kill switch is active.
+R "sed -i 's/^remote 172.30.0.20 /remote vpn.lab.test /' /etc/openvpn/client/windscribe.conf
+   echo 'nameserver $SITE' > /etc/resolv.conf
+   /opt/shadowpi/scripts/killswitch.sh" > out/ks-hostname.log 2>&1
+dns=$(R "timeout 6 getent -s dns hosts vpn.lab.test >/dev/null 2>&1 && echo open || echo blocked")
+R "systemctl start --no-block openvpn-windscribe"; sleep 12
+got=$(site_from_client 8000)
+check K6 "VPN reconnects under the kill switch when 'remote' is a hostname" $([ "$got" = "$VPN_EXIT" ] && [ "$dns" = blocked ]; echo $?) "website saw: $got; router DNS over the WAN while the VPN was down: $dns"
 
 echo
 echo "PASS $pass  FAIL $fail   (details: lab/out/results.md, logs: lab/out/)"
