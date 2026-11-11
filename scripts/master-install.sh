@@ -152,7 +152,8 @@ apt install -y \
     jq \
     ca-certificates \
     gnupg \
-    lsb-release
+    lsb-release \
+    rfkill
 
 print_success "Базовые пакеты установлены"
 
@@ -474,8 +475,13 @@ print_success "Скрипты и веб-панель установлены"
 
 print_header "Финальные настройки"
 
-# Разблокировка WiFi
-rfkill unblock wifi
+# Unblock Wi-Fi. Never fatal: this is the last step, and a board without a radio switch
+# (no /dev/rfkill: wired-only boards, VMs, containers) must not fail the whole install here.
+if command -v rfkill >/dev/null 2>&1 && [ -e /dev/rfkill ]; then
+    rfkill unblock wifi || print_warning "rfkill unblock wifi не сработал — проверьте: rfkill list"
+else
+    print_warning "rfkill недоступен (нет /dev/rfkill) — разблокировка WiFi пропущена"
+fi
 
 # Создание файла статуса
 echo "installed" > /opt/shadowpi/status/install-status.txt
