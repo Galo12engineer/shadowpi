@@ -168,11 +168,9 @@ async function updateTorStatus() {
             torButtonText.textContent = 'Остановить';
             torGauge.classList.add('active');
             torCard.classList.add('active');
-            torChainStatus.textContent = 'Активен';
-            chainTor.classList.add('active');
-            chainTor.classList.remove('optional');
-            arrowTor.classList.add('active');
-            arrowTor.classList.remove('optional');
+            // Experimental: the Tor service runs, but client traffic is not routed through it,
+            // so the chain diagram must not show Tor as an active hop.
+            torChainStatus.textContent = 'Не в цепочке';
         } else {
             torBadge.textContent = 'Отключен';
             torBadge.className = 'service-badge secondary';
@@ -180,11 +178,7 @@ async function updateTorStatus() {
             torButtonText.textContent = 'Включить';
             torGauge.classList.remove('active');
             torCard.classList.remove('active');
-            torChainStatus.textContent = 'Опционально';
-            chainTor.classList.remove('active');
-            chainTor.classList.add('optional');
-            arrowTor.classList.remove('active');
-            arrowTor.classList.add('optional');
+            torChainStatus.textContent = 'Эксперимент';
         }
     } catch (error) {
         console.error('Tor status error:', error);
@@ -485,15 +479,14 @@ function updateMainStatus() {
 
     const vpnActive = statusData.vpn?.active || false;
     const v2rayActive = statusData.v2ray?.active || false;
-    const torActive = statusData.tor?.active || false;
 
+    // Tor is not counted: it is experimental and does not carry client traffic yet.
     let protectionLevel = 0;
     if (vpnActive) protectionLevel++;
     if (v2rayActive) protectionLevel++;
-    if (torActive) protectionLevel++;
 
     // Calculate ring progress
-    const maxLevel = 3;
+    const maxLevel = 2;
     const circumference = 2 * Math.PI * 18;
     const offset = circumference - (protectionLevel / maxLevel) * circumference;
     statusRing.style.strokeDashoffset = offset;

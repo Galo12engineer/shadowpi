@@ -4,7 +4,7 @@
   <img src="docs/project-banner.png" alt="ShadowPi architecture" width="600">
 </p>
 
-ShadowPi turns a Raspberry Pi 4 into a Wi-Fi router that sends every connected device through a chain of VPN, obfuscation proxy and, optionally, Tor. A kill switch blocks traffic whenever the tunnel is down.
+ShadowPi turns a Raspberry Pi 4 into a Wi-Fi router that sends every connected device through a VPN and, optionally, an obfuscation proxy. A kill switch blocks traffic whenever the tunnel is down. A Tor layer is planned and currently experimental (see below).
 
 > **Status:** design, install scripts and web panel are complete. The project has **not yet been validated end to end on real hardware**. Treat it as a reference build. Detailed setup docs are in Russian.
 
@@ -16,19 +16,19 @@ ShadowPi turns a Raspberry Pi 4 into a Wi-Fi router that sends every connected d
 Device → Wi-Fi (hostapd) → OpenVPN → V2Ray/Xray proxy → Internet
 ```
 
-**Paranoid mode (+ Tor)**
+**Paranoid mode (+ Tor): experimental, does not route traffic yet**
 
 ```
-Device → Wi-Fi → OpenVPN → Tor → V2Ray/Xray proxy → Internet
+Device → Wi-Fi → OpenVPN → Tor → V2Ray/Xray proxy → Internet      (design target)
 ```
 
-The proxy hop always comes last, so a Tor exit node sees only encrypted proxy traffic, not the user's traffic.
+`toggle-tor.sh paranoid` and the panel's Tor button start the Tor service, but no firewall rule sends client traffic into Tor. Traffic keeps flowing exactly as in Fast mode. The lab proves this (check T1 in [docs/LAB.md](docs/LAB.md)); real transparent routing through Tor is on the [roadmap](docs/ROADMAP.md).
 
 ## Features
 
 | Area | What it does |
 |---|---|
-| Tunnels | OpenVPN as the base tunnel, V2Ray/Xray for obfuscation, optional Tor layer (`toggle-tor.sh fast\|paranoid`) |
+| Tunnels | OpenVPN as the base tunnel, V2Ray/Xray for obfuscation. Tor layer: experimental, the service starts but traffic is not routed through it yet |
 | Leak protection | iptables kill switch, DNS leak protection, IPv6 disabled, transparent proxy redirect |
 | Uplinks | Ethernet or a USB 4G/LTE modem, with WAN switching (`wan-switch.sh`) and modem setup via ModemManager |
 | Hotspot | hostapd + dnsmasq, local `anonrouter.local` name |

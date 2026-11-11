@@ -102,6 +102,8 @@ check B3 "'Restart all' restarts services" $([ -z "$rs" ]; echo $?) "$rs"
 panel tor_start >/dev/null; sleep 5
 got=$(site_from_client 8000); nat=$(R "iptables -t nat -S | grep -c -E '9040|5353'")
 check T1 "Tor 'Paranoid' mode sends client traffic into Tor" $([ "${nat:-0}" -gt 0 ]; echo $?) "tor: $(R 'systemctl is-active tor'), NAT rules to Tor ports: $nat, website still saw: $got"
+t2=$(R "/opt/shadowpi/scripts/toggle-tor.sh status 2>&1 | grep -c -i 'experimental'; curl -s -u admin:labpanel123 http://10.0.0.1:8080/index.html | grep -c 'Экспериментально'")
+check T2 "While T1 fails, Tor mode is labelled experimental (toggle-tor.sh output and panel)" $(echo $t2 | grep -q -E '^[1-9][0-9]* [1-9]'; echo $?) "lines saying so in toggle-tor.sh status / panel page: $(echo $t2)"
 echo "== V2Ray transparent proxy (lab Xray stand-in on :12345)"
 R "lab-xray-standin.sh" > out/xray.log 2>&1
 v2=$(R "/opt/shadowpi/scripts/setup-v2ray-redirect.sh 2>&1; echo rc=\$?")
