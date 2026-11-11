@@ -48,6 +48,9 @@ function log_action($action, $details = '') {
     $timestamp = date('Y-m-d H:i:s');
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
     $user = $_SESSION['username'] ?? 'anonymous';
+    // One entry = one line: control characters (a newline in a username, for example)
+    // would let a client forge extra log lines.
+    $details = preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) $details);
     $log_entry = "[$timestamp] [$ip] [$user] $action: $details\n";
     
     $log_dir = dirname(LOG_FILE);

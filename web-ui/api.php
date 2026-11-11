@@ -63,20 +63,6 @@ if (in_array($action, $write_actions, true)) {
     log_action('API_ACTION', $action);
 }
 
-// Security: Only allow from localhost or local network
-$allowed_ips = ['127.0.0.1', '::1'];
-$client_ip = $_SERVER['REMOTE_ADDR'];
-
-// Allow local network (10.0.0.x and 192.168.x.x)
-$is_local = in_array($client_ip, $allowed_ips)
-    || preg_match('/^10\.0\.0\./', $client_ip)
-    || preg_match('/^192\.168\./', $client_ip);
-
-if (!$is_local && !is_authenticated()) {
-    http_response_code(403);
-    die(json_encode(['error' => 'Access denied']));
-}
-
 // Route actions
 switch ($action) {
     // Status endpoints

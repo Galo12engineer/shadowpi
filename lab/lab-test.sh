@@ -38,6 +38,9 @@ R "chmod 755 /usr/local/sbin/lab-*.sh; lab-netprep.sh" >/dev/null
 R "LAB_BAD_V2RAYA_SHA=1 lab-install.sh" > out/install.log 2>&1; rc=$?
 v2=$(R "dpkg-query -W v2raya >/dev/null 2>&1 && echo installed || echo 'not installed'")
 check I2 "Installer refuses v2rayA with a wrong SHA-256 and still finishes" $([ "$rc" = 0 ] && [ "$v2" = "not installed" ]; echo $?) "exit $rc; v2rayA: $v2; $(grep -m1 -o 'SHA-256[^—]*' out/install.log); last line: $(tail -1 out/install.log)"
+shown=$(cat out/install-as-is.log out/install.log | grep -c -E 'labwifi123|labpanel123')
+modes=$(R "stat -c '%a %U:%G %n' /etc/hostapd/hostapd.conf /etc/nginx/auth/htpasswd /var/www/shadowpi/config.php | tr '\n' ' '")
+check I5 "Installer does not print the Wi-Fi or panel password, and keeps them in non-world-readable files" $([ "$shown" = 0 ] && ! echo "$modes" | grep -q -E '(^| )[0-7][0-7][1-7] '; echo $?) "lines of installer output containing a password: $shown; files: $modes"
 code=$(R "curl -s -o /dev/null -w '%{http_code}' -u admin:labpanel123 'http://10.0.0.1:8080/api.php?action=vpn_status'")
 check I3 "Panel API answers right after install (before reboot)" $([ "$code" = 401 ] || [ "$code" = 200 ]; echo $?) "HTTP $code (php-fpm: $(R 'systemctl is-active php8.2-fpm'))"
 R "LAB_ISP=1 lab-netprep.sh" >/dev/null

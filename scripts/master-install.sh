@@ -109,7 +109,7 @@ INSTALL_TOR=${INSTALL_TOR:-y}
 
 print_info "Конфигурация:"
 echo "  SSID: $WIFI_SSID"
-echo "  WiFi Password: $WIFI_PASSWORD"
+echo "  WiFi Password: (введён, ${#WIFI_PASSWORD} символов)"
 echo "  WAN: $WAN_INTERFACE"
 echo "  Tor: $INSTALL_TOR"
 echo ""
@@ -354,6 +354,9 @@ ieee80211n=1
 ht_capab=[HT40][SHORT-GI-20][DSSS_CCK-40]
 EOF
 
+# The file holds the Wi-Fi password in clear text: root only.
+chmod 0600 /etc/hostapd/hostapd.conf
+
 # Указать путь к конфигу
 echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' >> /etc/default/hostapd
 
@@ -392,11 +395,15 @@ print_header "Установка Nginx и PHP"
 apt install -y nginx php-fpm php-cli php-common
 
 # Генерация хеша пароля
-WEB_PASSWORD_HASH=$(openssl passwd -apr1 "$WEB_PASSWORD")
+# The password goes in on stdin, not as an argument: arguments of a running process are
+# visible to every local user in "ps".
+WEB_PASSWORD_HASH=$(printf '%s' "$WEB_PASSWORD" | openssl passwd -apr1 -stdin)
 
-# Создание htpasswd файла
+# Создание htpasswd файла (читать может только nginx)
 mkdir -p /etc/nginx/auth
 echo "admin:$WEB_PASSWORD_HASH" > /etc/nginx/auth/htpasswd
+chown root:www-data /etc/nginx/auth/htpasswd
+chmod 0640 /etc/nginx/auth/htpasswd
 
 # Nginx конфигурация для веб-панели
 cat > /etc/nginx/sites-available/shadowpi << 'EOF'
@@ -476,10 +483,11 @@ chown root:root /opt/shadowpi/scripts
 
 cp -r "$PROJECT_DIR"/web-ui/. /var/www/shadowpi/
 
-# Хеш пароля панели (bcrypt) записывается в config.php
-php -r '
+# Хеш пароля панели (bcrypt) записывается в config.php.
+# The password is read from stdin (printf is a shell builtin), never passed as an argument.
+printf '%s' "$WEB_PASSWORD" | php -r '
 $file = $argv[1];
-$hash = password_hash($argv[2], PASSWORD_DEFAULT);
+$hash = password_hash(stream_get_contents(STDIN), PASSWORD_DEFAULT);
 $code = file_get_contents($file);
 $code = preg_replace_callback(
     "/define\(\x27AUTH_PASSWORD_HASH\x27, \x27[^\x27]*\x27\)/",
@@ -487,7 +495,7 @@ $code = preg_replace_callback(
     $code
 );
 file_put_contents($file, $code);
-' /var/www/shadowpi/config.php "$WEB_PASSWORD"
+' /var/www/shadowpi/config.php
 
 chown -R root:www-data /var/www/shadowpi
 chmod -R u=rwX,g=rX,o= /var/www/shadowpi
@@ -575,12 +583,12 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo ""
 echo -e "${BLUE}📶 WiFi Hotspot:${NC}"
 echo "   SSID: $WIFI_SSID"
-echo "   Пароль: $WIFI_PASSWORD"
+echo "   Пароль: тот, что вы ввели в начале (здесь не показывается)"
 echo ""
 echo -e "${BLUE}🌐 Веб-панели:${NC}"
 echo "   Панель управления: http://anonrouter.local:8080"
 echo "     Логин: admin"
-echo "     Пароль: $WEB_PASSWORD"
+echo "     Пароль: тот, что вы ввели в начале (здесь не показывается)"
 echo ""
 if [ "$V2RAYA_INSTALLED" = true ]; then
     echo "   v2rayA (прокси): http://anonrouter.local:2017"
