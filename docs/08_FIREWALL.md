@@ -20,6 +20,11 @@ down are older variants: they are **not installed, not tested, and differ from t
 sudo /opt/shadowpi/scripts/killswitch.sh
 ```
 
+The installer enables `shadowpi-killswitch.service`, which runs this script at every boot
+**before the network comes up** (`Before=network-pre.target`), so there is no window in
+which the hotspot forwards traffic without the firewall. `start-all.sh` also applies it if
+the rules are missing.
+
 What it allows:
 
 | Traffic | Rule |

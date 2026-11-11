@@ -159,6 +159,16 @@ R "systemctl start --no-block openvpn-windscribe"; sleep 12
 got=$(site_from_client 8000)
 check K6 "VPN reconnects under the kill switch when 'remote' is a hostname" $([ "$got" = "$VPN_EXIT" ] && [ "$dns" = blocked ]; echo $?) "website saw: $got; router DNS over the WAN while the VPN was down: $dns"
 
+echo "== Reboot"
+# Last on purpose: restarting the container is the lab's reboot (systemd boots again, the
+# network namespace and every iptables rule are gone, as after a power cycle).
+docker compose restart router >/dev/null 2>&1; sleep 4
+for i in $(seq 30); do [ "$(R 'systemctl is-active multi-user.target' 2>/dev/null)" = active ] && break; sleep 2; done
+boot=$(R "iptables -S | grep -c -- '-P .* DROP'; systemctl is-active shadowpi-killswitch.service; systemctl is-active openvpn-windscribe")
+R "lab-netprep.sh; LAB_ISP=1 lab-netprep.sh" >/dev/null 2>&1   # interface names are lost on restart
+got=$(site_from_client 8000)
+check K5 "After a reboot the kill switch is on before anything else starts" $(echo $boot | grep -q '^3 active' && [ "$got" = none ]; echo $?) "DROP policies / kill switch unit / VPN service: $(echo $boot); client → website saw: $got"
+
 echo
 echo "PASS $pass  FAIL $fail   (details: lab/out/results.md, logs: lab/out/)"
 { echo; echo "PASS $pass · FAIL $fail · $(date -u '+%Y-%m-%d %H:%M UTC')"; } >> "$RES"

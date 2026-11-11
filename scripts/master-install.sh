@@ -510,6 +510,40 @@ visudo -cf /etc/sudoers.d/shadowpi
 print_success "Скрипты и веб-панель установлены"
 
 ###############################################################################
+# Kill switch при загрузке
+###############################################################################
+
+print_header "Kill switch: автозапуск при загрузке"
+
+# Without this unit the firewall exists only until the next reboot: after a reboot the
+# router would forward hotspot clients straight to the WAN, with their traffic unprotected.
+# Ordered before network-pre.target, so the rules are in place before any interface is up.
+# It is enabled, not started: the rules take effect at the reboot the installer asks for
+# (starting it now would cut this installer off from the internet).
+cat > /etc/systemd/system/shadowpi-killswitch.service << 'EOF'
+[Unit]
+Description=ShadowPi kill switch (internet only through the VPN)
+Documentation=file:/opt/shadowpi/scripts/killswitch.sh
+DefaultDependencies=no
+After=local-fs.target systemd-modules-load.service
+Before=network-pre.target shutdown.target
+Wants=network-pre.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/shadowpi/scripts/killswitch.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable shadowpi-killswitch.service
+
+print_success "Kill switch будет включаться при каждой загрузке"
+
+###############################################################################
 # Финальные настройки
 ###############################################################################
 

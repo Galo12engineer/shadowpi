@@ -20,6 +20,16 @@ start_required() {
 
 echo "🚀 Запуск всех сервисов..."
 
+# 0. Kill switch first (required): never open the hotspot without it. Normally the
+#    shadowpi-killswitch unit has applied it at boot; if the rules are gone, apply them now.
+if ! sudo iptables -S FORWARD 2>/dev/null | grep -q -- '-P FORWARD DROP'; then
+    echo "▶️  Kill switch не активен — включаю..."
+    if ! sudo /opt/shadowpi/scripts/killswitch.sh >/dev/null; then
+        echo "❌ Kill switch: не удалось применить правила" >&2
+        failed+=("Kill switch")
+    fi
+fi
+
 # 1. OpenVPN (required: without it clients have no internet behind the kill switch)
 start_required "OpenVPN" openvpn-windscribe
 sleep 3
