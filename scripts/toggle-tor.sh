@@ -3,7 +3,11 @@
 # ShadowPi - Toggle между режимами Fast и Paranoid
 # ============================================================
 # Режим Fast:     OpenVPN → V2Ray/Proxy
-# Режим Paranoid: OpenVPN → Tor → V2Ray/Proxy
+# Режим Paranoid: OpenVPN → Tor → V2Ray/Proxy   (design target)
+#
+# EXPERIMENTAL: "paranoid" only starts the Tor service. No iptables rule sends client
+# traffic into Tor (TransPort 9040 / DNSPort 5353), so traffic keeps flowing as in Fast
+# mode. The script says so in its output. See docs/ROADMAP.md.
 # ============================================================
 
 set -e
@@ -22,20 +26,18 @@ show_status() {
     echo ""
     if [ "$TOR_STATUS" = "active" ]; then
         echo -e "${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo -e "${PURPLE}  🟣 РЕЖИМ: PARANOID (Максимальная анонимность)${NC}"
+        echo -e "${PURPLE}  🟣 РЕЖИМ: PARANOID — ЭКСПЕРИМЕНТАЛЬНЫЙ${NC}"
         echo -e "${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo ""
-        echo -e "  ${GREEN}Цепочка:${NC}"
+        echo -e "  ${YELLOW}⚠️  EXPERIMENTAL: Tor запущен, но трафик клиентов через него пока НЕ идёт.${NC}"
+        echo -e "  ${YELLOW}   Нет правил iptables, которые отправляют трафик в Tor.${NC}"
+        echo ""
+        echo -e "  ${GREEN}Что работает сейчас:${NC}"
+        echo -e "  • Цепочка клиентов та же, что в режиме Fast: [Ты] → [OpenVPN] → [V2Ray/Proxy] → [Интернет]"
+        echo -e "  • На самом роутере доступен SOCKS-порт Tor: 127.0.0.1:9050"
+        echo ""
+        echo -e "  ${GREEN}Цель (ещё не реализовано, docs/ROADMAP.md):${NC}"
         echo -e "  [Ты] → [OpenVPN] → [Tor] → [V2Ray/Proxy] → [Интернет]"
-        echo ""
-        echo -e "  ${GREEN}Что это значит:${NC}"
-        echo -e "  • ISP видит: VPN трафик к Windscribe"
-        echo -e "  • Windscribe видит: Tor entry node"
-        echo -e "  • Tor exit видит: ${GREEN}Только шифрованный V2Ray!${NC}"
-        echo -e "  • Прокси видит: Твои запросы (от Tor IP)"
-        echo ""
-        echo -e "  ${YELLOW}⚠️  Скорость: ~15-30 Mbps${NC}"
-        echo -e "  ${GREEN}✅ Tor exit НЕ МОЖЕТ прослушать трафик!${NC}"
     else
         echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo -e "${GREEN}  🟢 РЕЖИМ: FAST (Быстрый)${NC}"
@@ -56,7 +58,7 @@ show_status() {
 
 case $ACTION in
     on|start|paranoid)
-        echo -e "${PURPLE}🧅 Включение режима Paranoid (+ Tor)...${NC}"
+        echo -e "${PURPLE}🧅 Запуск Tor (режим Paranoid — экспериментальный, трафик клиентов НЕ меняется)...${NC}"
         
         # Настройка Tor
         sudo tee /etc/tor/torrc > /dev/null << 'EOF'
@@ -152,13 +154,13 @@ EOF
         echo ""
         echo "  Команды:"
         echo "    fast     - 🟢 Режим Fast: VPN → Proxy (быстрый)"
-        echo "    paranoid - 🟣 Режим Paranoid: VPN → Tor → Proxy (анонимный)"
+        echo "    paranoid - 🟣 EXPERIMENTAL: запускает Tor, но трафик клиентов через него пока не идёт"
         echo "    toggle   - Переключить между режимами"
         echo "    status   - Показать текущий режим"
         echo ""
         echo "  Примеры:"
         echo "    $0 fast      # Выключить Tor, быстрый режим"
-        echo "    $0 paranoid  # Включить Tor, максимальная анонимность"
+        echo "    $0 paranoid  # Запустить сервис Tor (экспериментально)"
         echo "    $0 toggle    # Переключить режим"
         echo ""
         exit 1

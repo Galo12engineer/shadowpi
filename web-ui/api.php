@@ -5,11 +5,10 @@
  * With authentication, CSRF protection, and logging
  */
 
-// Initialize session and config
-session_name('shadowpi_session');
-session_start();
-
+// Config, then the hardened session (cookie flags, idle timeout)
 require_once 'config.php';
+
+start_secure_session();
 
 // Set security headers
 set_security_headers();
@@ -62,20 +61,6 @@ if (in_array($action, $write_actions, true)) {
 
     // Log the action
     log_action('API_ACTION', $action);
-}
-
-// Security: Only allow from localhost or local network
-$allowed_ips = ['127.0.0.1', '::1'];
-$client_ip = $_SERVER['REMOTE_ADDR'];
-
-// Allow local network (10.0.0.x and 192.168.x.x)
-$is_local = in_array($client_ip, $allowed_ips)
-    || preg_match('/^10\.0\.0\./', $client_ip)
-    || preg_match('/^192\.168\./', $client_ip);
-
-if (!$is_local && !is_authenticated()) {
-    http_response_code(403);
-    die(json_encode(['error' => 'Access denied']));
 }
 
 // Route actions
@@ -382,12 +367,19 @@ function startWiFi()
     shell_exec('sudo systemctl start dnsmasq 2>&1');
     sleep(1);
 
-    $success = isServiceActive('hostapd');
-    log_action('WIFI', 'start - ' . ($success ? 'success' : 'failed'));
+    // The hotspot needs both: hostapd (radio) and dnsmasq (DHCP + DNS for clients).
+    $down = [];
+    foreach (['hostapd', 'dnsmasq'] as $service) {
+        if (!isServiceActive($service)) {
+            $down[] = $service;
+        }
+    }
+    $success = empty($down);
+    log_action('WIFI', 'start - ' . ($success ? 'success' : 'failed: ' . implode(', ', $down)));
 
     return [
         'success' => $success,
-        'message' => 'WiFi Hotspot запущен'
+        'message' => $success ? 'WiFi Hotspot запущен' : 'WiFi Hotspot не запущен: ' . implode(', ', $down)
     ];
 }
 
@@ -397,52 +389,52 @@ function stopWiFi()
     shell_exec('sudo systemctl stop dnsmasq 2>&1');
     sleep(1);
 
-    $success = !isServiceActive('hostapd');
-    log_action('WIFI', 'stop - ' . ($success ? 'success' : 'failed'));
+    $up = [];
+    foreach (['hostapd', 'dnsmasq'] as $service) {
+        if (isServiceActive($service)) {
+            $up[] = $service;
+        }
+    }
+    $success = empty($up);
+    log_action('WIFI', 'stop - ' . ($success ? 'success' : 'failed: ' . implode(', ', $up)));
 
     return [
         'success' => $success,
-        'message' => 'WiFi Hotspot остановлен'
+        'message' => $success ? 'WiFi Hotspot остановлен' : 'Не остановлено: ' . implode(', ', $up)
+    ];
+}
+
+// Runs one of the *-all.sh scripts and reports what really happened: the scripts exit
+// non-zero when any required step failed, and that exit code is the result.
+function runAllScript($script, $verb, $ok_message, $fail_message)
+{
+    $output = [];
+    $rc = 1;
+    exec('sudo /opt/shadowpi/scripts/' . $script . ' 2>&1', $output, $rc);
+    $success = ($rc === 0);
+
+    log_action('ALL_SERVICES', $verb . ' - ' . ($success ? 'success' : "failed (exit $rc)"));
+
+    return [
+        'success' => $success,
+        'message' => $success ? $ok_message : $fail_message,
+        'output' => implode("\n", $output)
     ];
 }
 
 function startAll()
 {
-    shell_exec('sudo /opt/shadowpi/scripts/start-all.sh 2>&1');
-    sleep(2);
-
-    log_action('ALL_SERVICES', 'start');
-
-    return [
-        'success' => true,
-        'message' => 'Все сервисы запускаются...'
-    ];
+    return runAllScript('start-all.sh', 'start', 'Все сервисы запущены', 'Не все сервисы запустились — смотрите вывод');
 }
 
 function stopAll()
 {
-    shell_exec('sudo /opt/shadowpi/scripts/stop-all.sh 2>&1');
-    sleep(2);
-
-    log_action('ALL_SERVICES', 'stop');
-
-    return [
-        'success' => true,
-        'message' => 'Все сервисы останавливаются...'
-    ];
+    return runAllScript('stop-all.sh', 'stop', 'Все сервисы остановлены', 'Не все сервисы остановлены — смотрите вывод');
 }
 
 function restartAll()
 {
-    shell_exec('sudo /opt/shadowpi/scripts/restart-all.sh 2>&1');
-    sleep(2);
-
-    log_action('ALL_SERVICES', 'restart');
-
-    return [
-        'success' => true,
-        'message' => 'Все сервисы перезапускаются...'
-    ];
+    return runAllScript('restart-all.sh', 'restart', 'Все сервисы перезапущены', 'Перезапуск завершился с ошибками — смотрите вывод');
 }
 
 function runTests()
@@ -539,19 +531,29 @@ function switchWAN($target)
         return ['success' => false, 'message' => 'Недопустимый интерфейс'];
     }
 
-    $output = shell_exec("sudo /opt/shadowpi/scripts/wan-switch.sh " . escapeshellarg($target) . " 2>&1");
+    // wan-switch.sh takes "auto|ethernet|modem" or "switch <interface>".
+    $args = in_array($target, ['auto', 'ethernet', 'modem'], true)
+        ? escapeshellarg($target)
+        : 'switch ' . escapeshellarg($target);
 
-    log_action('WAN_SWITCH', "Switched to: $target");
+    $lines = [];
+    $rc = 1;
+    exec('sudo /opt/shadowpi/scripts/wan-switch.sh ' . $args . ' 2>&1', $lines, $rc);
+    $success = ($rc === 0);
+
+    log_action('WAN_SWITCH', "Target: $target - " . ($success ? 'success' : "failed (exit $rc)"));
 
     // Re-read status
     sleep(2);
     $status = getWANStatus();
 
     return [
-        'success' => true,
-        'message' => "WAN переключен на: " . $status['current'],
+        'success' => $success,
+        'message' => $success
+            ? 'WAN переключен на: ' . $status['current']
+            : "Не удалось переключить WAN на $target (сейчас: " . $status['current'] . ')',
         'current' => $status['current'],
-        'output' => $output
+        'output' => implode("\n", $lines)
     ];
 }
 

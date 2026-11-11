@@ -177,11 +177,11 @@ www-data ALL=(ALL) NOPASSWD: /bin/systemctl start dnsmasq
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop dnsmasq
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-active dnsmasq
 
-www-data ALL=(ALL) NOPASSWD: /opt/anon-router/scripts/start-all.sh
-www-data ALL=(ALL) NOPASSWD: /opt/anon-router/scripts/stop-all.sh
-www-data ALL=(ALL) NOPASSWD: /opt/anon-router/scripts/restart-all.sh
-www-data ALL=(ALL) NOPASSWD: /opt/anon-router/scripts/test-all.sh
-www-data ALL=(ALL) NOPASSWD: /opt/anon-router/scripts/toggle-tor.sh
+www-data ALL=(ALL) NOPASSWD: /opt/shadowpi/scripts/start-all.sh
+www-data ALL=(ALL) NOPASSWD: /opt/shadowpi/scripts/stop-all.sh
+www-data ALL=(ALL) NOPASSWD: /opt/shadowpi/scripts/restart-all.sh
+www-data ALL=(ALL) NOPASSWD: /opt/shadowpi/scripts/test-all.sh
+www-data ALL=(ALL) NOPASSWD: /opt/shadowpi/scripts/toggle-tor.sh
 
 www-data ALL=(ALL) NOPASSWD: /usr/sbin/iw dev wlan0 station dump
 www-data ALL=(ALL) NOPASSWD: /usr/bin/vcgencmd measure_temp

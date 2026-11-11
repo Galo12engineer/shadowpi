@@ -109,7 +109,7 @@ INSTALL_TOR=${INSTALL_TOR:-y}
 
 print_info "Конфигурация:"
 echo "  SSID: $WIFI_SSID"
-echo "  WiFi Password: $WIFI_PASSWORD"
+echo "  WiFi Password: (введён, ${#WIFI_PASSWORD} символов)"
 echo "  WAN: $WAN_INTERFACE"
 echo "  Tor: $INSTALL_TOR"
 echo ""
@@ -152,7 +152,8 @@ apt install -y \
     jq \
     ca-certificates \
     gnupg \
-    lsb-release
+    lsb-release \
+    rfkill
 
 print_success "Базовые пакеты установлены"
 
@@ -215,19 +216,59 @@ print_header "Установка XRay и v2rayA"
 print_info "Установка XRay core..."
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
 
-# v2rayA (Web UI)
-print_info "Установка v2rayA..."
-wget -qO - https://apt.v2raya.org/key/public-key.asc | tee /etc/apt/trusted.gpg.d/v2raya.asc
+# v2rayA is a web UI for Xray. It is OPTIONAL: the VPN, the kill switch and the panel work
+# without it, so a failure here must never stop the install.
+#
+# It is not installed from apt.v2raya.org: that repository serves a certificate chain
+# Debian does not trust, and TLS verification is NOT switched off to get around it
+# (no "[trusted=yes]", no "--allow-insecure"). A pinned release is downloaded from GitHub
+# instead and installed only if its SHA-256 matches the value below.
+# To update: change the version and all three hashes together (they are published on
+# https://github.com/v2rayA/v2rayA/releases next to each .deb).
+V2RAYA_VERSION="2.5.10"
+V2RAYA_SHA256_arm64="c4ad561ba36df480222552e3595103ac4ae54d29141c6b03d53edab96ea15f67"
+V2RAYA_SHA256_armv7="f8eac31beee5a70340d9593cb3ed5bd6c5759a083ed21e49a9f0889c0d7aa31d"
+V2RAYA_SHA256_x64="7fa33efac93296708133dc09240ac035f4df2b38bbaf2b30cc9c385b58b488b1"
+V2RAYA_INSTALLED=false
 
-echo "deb https://apt.v2raya.org/ v2raya main" | tee /etc/apt/sources.list.d/v2raya.list
+install_v2raya() {
+    local build sha_var sha url tmp
+    case "$(dpkg --print-architecture)" in
+        arm64) build=arm64 ;;
+        armhf) build=armv7 ;;
+        amd64) build=x64 ;;
+        *)     print_warning "Для этой архитектуры нет закреплённой сборки v2rayA"; return 1 ;;
+    esac
+    sha_var="V2RAYA_SHA256_$build"
+    sha="${!sha_var}"
+    url="https://github.com/v2rayA/v2rayA/releases/download/v${V2RAYA_VERSION}/installer_debian_${build}_${V2RAYA_VERSION}.deb"
+    tmp=$(mktemp -d)
 
-apt update
-apt install -y v2raya
+    if ! curl -fsSL --retry 2 -o "$tmp/v2raya.deb" "$url"; then
+        print_warning "Не удалось скачать v2rayA: $url"
+        rm -rf "$tmp"; return 1
+    fi
+    if ! echo "$sha  $tmp/v2raya.deb" | sha256sum -c --quiet - >/dev/null 2>&1; then
+        print_error "SHA-256 пакета v2rayA не совпадает с ожидаемым — пакет НЕ установлен"
+        rm -rf "$tmp"; return 1
+    fi
+    if ! apt install -y "$tmp/v2raya.deb"; then
+        print_warning "apt не смог установить пакет v2rayA"
+        rm -rf "$tmp"; return 1
+    fi
+    rm -rf "$tmp"
+}
 
-systemctl enable v2raya
-systemctl start v2raya
-
-print_success "XRay и v2rayA установлены"
+print_info "Установка v2rayA ${V2RAYA_VERSION} (опционально)..."
+if install_v2raya; then
+    V2RAYA_INSTALLED=true
+    systemctl enable v2raya
+    systemctl start v2raya || print_warning "v2rayA установлен, но не запустился: journalctl -u v2raya"
+    print_success "XRay и v2rayA установлены"
+else
+    print_warning "v2rayA НЕ установлен. Установка продолжается: VPN, kill switch и панель работают без него."
+    print_warning "XRay core установлен; настроить прокси вручную: docs/04_V2RAY_SETUP.md"
+fi
 
 ###############################################################################
 # Установка Tor (опционально)
@@ -280,9 +321,15 @@ address=/anonrouter.local/10.0.0.1
 server=1.1.1.1
 server=8.8.8.8
 
-# Логи
-log-queries
-log-dhcp
+# No query logging: a privacy router must not keep a record of what clients resolve.
+# (Do not add log-queries / log-dhcp here; for debugging run dnsmasq by hand with -q.)
+quiet-dhcp
+
+# Listen only on the hotspot's own address. By default dnsmasq binds port 53 on ALL
+# addresses, which fails ("Address already in use") when systemd-resolved is running: it
+# holds 127.0.0.53:53, and it is installed together with openvpn-systemd-resolved.
+# bind-dynamic (not bind-interfaces) also copes with wlan0 getting its address later.
+bind-dynamic
 EOF
 
 # hostapd конфигурация
@@ -306,6 +353,9 @@ rsn_pairwise=CCMP
 ieee80211n=1
 ht_capab=[HT40][SHORT-GI-20][DSSS_CCK-40]
 EOF
+
+# The file holds the Wi-Fi password in clear text: root only.
+chmod 0600 /etc/hostapd/hostapd.conf
 
 # Указать путь к конфигу
 echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' >> /etc/default/hostapd
@@ -345,11 +395,15 @@ print_header "Установка Nginx и PHP"
 apt install -y nginx php-fpm php-cli php-common
 
 # Генерация хеша пароля
-WEB_PASSWORD_HASH=$(openssl passwd -apr1 "$WEB_PASSWORD")
+# The password goes in on stdin, not as an argument: arguments of a running process are
+# visible to every local user in "ps".
+WEB_PASSWORD_HASH=$(printf '%s' "$WEB_PASSWORD" | openssl passwd -apr1 -stdin)
 
-# Создание htpasswd файла
+# Создание htpasswd файла (читать может только nginx)
 mkdir -p /etc/nginx/auth
 echo "admin:$WEB_PASSWORD_HASH" > /etc/nginx/auth/htpasswd
+chown root:www-data /etc/nginx/auth/htpasswd
+chmod 0640 /etc/nginx/auth/htpasswd
 
 # Nginx конфигурация для веб-панели
 cat > /etc/nginx/sites-available/shadowpi << 'EOF'
@@ -382,10 +436,21 @@ EOF
 ln -sf /etc/nginx/sites-available/shadowpi /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
+# PHP-FPM: apt normally starts it, but not everywhere (image builders, containers, chroots).
+# Start and enable it explicitly, otherwise the panel answers 502 until the next reboot.
+# The unit name carries the PHP version (php8.2-fpm, php8.4-fpm...), so look it up.
+PHP_FPM_UNIT=$(systemctl list-unit-files 'php*-fpm.service' --no-legend 2>/dev/null | awk 'NR==1 {print $1}')
+if [ -n "$PHP_FPM_UNIT" ]; then
+    systemctl enable --now "$PHP_FPM_UNIT"
+else
+    print_error "PHP-FPM unit не найден — веб-панель работать не будет"
+    exit 1
+fi
+
 systemctl enable nginx
 systemctl restart nginx
 
-print_success "Nginx установлен (порт 8080)"
+print_success "Nginx и PHP-FPM запущены (порт 8080)"
 
 ###############################################################################
 # Создание структуры проекта
@@ -399,6 +464,9 @@ mkdir -p /var/log/shadowpi
 
 chown -R $SUDO_USER:$SUDO_USER /opt/shadowpi
 chown -R www-data:www-data /var/log/shadowpi
+
+# Panel state that only PHP may read or write (failed-login counters for the lockout)
+install -d -o www-data -g www-data -m 0700 /var/lib/shadowpi
 
 print_success "Структура каталогов создана"
 
@@ -415,10 +483,11 @@ chown root:root /opt/shadowpi/scripts
 
 cp -r "$PROJECT_DIR"/web-ui/. /var/www/shadowpi/
 
-# Хеш пароля панели (bcrypt) записывается в config.php
-php -r '
+# Хеш пароля панели (bcrypt) записывается в config.php.
+# The password is read from stdin (printf is a shell builtin), never passed as an argument.
+printf '%s' "$WEB_PASSWORD" | php -r '
 $file = $argv[1];
-$hash = password_hash($argv[2], PASSWORD_DEFAULT);
+$hash = password_hash(stream_get_contents(STDIN), PASSWORD_DEFAULT);
 $code = file_get_contents($file);
 $code = preg_replace_callback(
     "/define\(\x27AUTH_PASSWORD_HASH\x27, \x27[^\x27]*\x27\)/",
@@ -426,7 +495,7 @@ $code = preg_replace_callback(
     $code
 );
 file_put_contents($file, $code);
-' /var/www/shadowpi/config.php "$WEB_PASSWORD"
+' /var/www/shadowpi/config.php
 
 chown -R root:www-data /var/www/shadowpi
 chmod -R u=rwX,g=rX,o= /var/www/shadowpi
@@ -449,13 +518,52 @@ visudo -cf /etc/sudoers.d/shadowpi
 print_success "Скрипты и веб-панель установлены"
 
 ###############################################################################
+# Kill switch при загрузке
+###############################################################################
+
+print_header "Kill switch: автозапуск при загрузке"
+
+# Without this unit the firewall exists only until the next reboot: after a reboot the
+# router would forward hotspot clients straight to the WAN, with their traffic unprotected.
+# Ordered before network-pre.target, so the rules are in place before any interface is up.
+# It is enabled, not started: the rules take effect at the reboot the installer asks for
+# (starting it now would cut this installer off from the internet).
+cat > /etc/systemd/system/shadowpi-killswitch.service << 'EOF'
+[Unit]
+Description=ShadowPi kill switch (internet only through the VPN)
+Documentation=file:/opt/shadowpi/scripts/killswitch.sh
+DefaultDependencies=no
+After=local-fs.target systemd-modules-load.service
+Before=network-pre.target shutdown.target
+Wants=network-pre.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/shadowpi/scripts/killswitch.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable shadowpi-killswitch.service
+
+print_success "Kill switch будет включаться при каждой загрузке"
+
+###############################################################################
 # Финальные настройки
 ###############################################################################
 
 print_header "Финальные настройки"
 
-# Разблокировка WiFi
-rfkill unblock wifi
+# Unblock Wi-Fi. Never fatal: this is the last step, and a board without a radio switch
+# (no /dev/rfkill: wired-only boards, VMs, containers) must not fail the whole install here.
+if command -v rfkill >/dev/null 2>&1 && [ -e /dev/rfkill ]; then
+    rfkill unblock wifi || print_warning "rfkill unblock wifi не сработал — проверьте: rfkill list"
+else
+    print_warning "rfkill недоступен (нет /dev/rfkill) — разблокировка WiFi пропущена"
+fi
 
 # Создание файла статуса
 echo "installed" > /opt/shadowpi/status/install-status.txt
@@ -475,14 +583,18 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo ""
 echo -e "${BLUE}📶 WiFi Hotspot:${NC}"
 echo "   SSID: $WIFI_SSID"
-echo "   Пароль: $WIFI_PASSWORD"
+echo "   Пароль: тот, что вы ввели в начале (здесь не показывается)"
 echo ""
 echo -e "${BLUE}🌐 Веб-панели:${NC}"
 echo "   Панель управления: http://anonrouter.local:8080"
 echo "     Логин: admin"
-echo "     Пароль: $WEB_PASSWORD"
+echo "     Пароль: тот, что вы ввели в начале (здесь не показывается)"
 echo ""
-echo "   v2rayA (прокси): http://anonrouter.local:2017"
+if [ "$V2RAYA_INSTALLED" = true ]; then
+    echo "   v2rayA (прокси): http://anonrouter.local:2017"
+else
+    echo "   v2rayA: НЕ установлен (необязательный компонент, см. предупреждение выше)"
+fi
 echo ""
 echo -e "${BLUE}📋 Следующие шаги:${NC}"
 echo "   1. Скопируйте Windscribe .ovpn конфиг:"
@@ -491,12 +603,10 @@ echo ""
 echo "   2. Настройте OpenVPN:"
 echo "      Смотрите docs/03_OPENVPN_SETUP.md"
 echo ""
-echo "   3. Добавьте прокси в v2rayA:"
-echo "      Откройте http://anonrouter.local:2017"
+echo "   3. (необязательно) Добавьте прокси: docs/04_V2RAY_SETUP.md"
 echo ""
 echo "   4. Запустите систему:"
 echo "      sudo systemctl start openvpn-windscribe"
-echo "      sudo systemctl start v2raya"
 echo "      sudo systemctl start hostapd"
 echo "      sudo systemctl start dnsmasq"
 echo ""

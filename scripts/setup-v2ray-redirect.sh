@@ -1,47 +1,52 @@
 #!/bin/bash
-# V2Ray Transparent Proxy iptables rules
-# Redirects traffic from WiFi clients to V2Ray
+# V2Ray/Xray transparent proxy: send Wi-Fi clients' TCP to the local transparent inbound.
+#
+#   setup-v2ray-redirect.sh        apply (only if the proxy is listening)
+#   setup-v2ray-redirect.sh off    remove
+#
+# Safe to run repeatedly: old rules are removed before new ones are added.
+set -euo pipefail
 
-echo "⚙️  Настройка V2Ray transparent proxy redirect..."
+PORT="${V2RAY_REDIRECT_PORT:-12345}"   # dokodemo-door inbound, see docs/04_V2RAY_SETUP.md
+LAN_IF="${LAN_IF:-wlan0}"
 
-# Очистить старые правила V2RAY chain
-iptables -t nat -F V2RAY 2>/dev/null
-iptables -t nat -X V2RAY 2>/dev/null
-iptables -t mangle -F V2RAY 2>/dev/null
-iptables -t mangle -X V2RAY 2>/dev/null
+remove_rules() {
+    while iptables -t nat -D PREROUTING -i "$LAN_IF" -p tcp -j V2RAY 2>/dev/null; do :; done
+    while iptables -D INPUT -i "$LAN_IF" -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null; do :; done
+    iptables -t nat -F V2RAY 2>/dev/null || true
+    iptables -t nat -X V2RAY 2>/dev/null || true
+}
 
-# Создать новую цепочку
+if [ "${1:-}" = "off" ]; then
+    remove_rules
+    echo "V2Ray redirect removed"
+    exit 0
+fi
+
+# Never redirect into a port nobody listens on: every client TCP connection would die.
+# REDIRECT delivers to the address of $LAN_IF, so a proxy bound only to 127.0.0.1 does not count.
+if ! ss -ltnH "sport = :$PORT" | awk '{print $4}' | grep -qv '^127\.'; then
+    remove_rules
+    echo "ERROR: no V2Ray/Xray transparent inbound is listening on :$PORT (outside 127.0.0.1)." >&2
+    echo "       Redirect NOT applied: clients go through the VPN only." >&2
+    exit 1
+fi
+
+remove_rules
 iptables -t nat -N V2RAY
-iptables -t mangle -N V2RAY
 
-# Игнорировать локальные адреса (RFC1918)
-iptables -t nat -A V2RAY -d 0.0.0.0/8 -j RETURN
-iptables -t nat -A V2RAY -d 10.0.0.0/8 -j RETURN
-iptables -t nat -A V2RAY -d 127.0.0.0/8 -j RET URN
-iptables -t nat -A V2RAY -d 169.254.0.0/16 -j RETURN
-iptables -t nat -A V2RAY -d 172.16.0.0/12 -j RETURN
-iptables -t nat -A V2RAY -d 192.168.0.0/16 -j RETURN
-iptables -t nat -A V2RAY -d 224.0.0.0/4 -j RETURN
-iptables -t nat -A V2RAY -d 240.0.0.0/4 -j RETURN
+# Connections to the router itself (panel, DNS, SSH, v2rayA UI) stay direct.
+# Skipping by destination ADDRESS, not by port: skipping ports 80/443 would send
+# almost all web traffic around the proxy.
+iptables -t nat -A V2RAY -m addrtype --dst-type LOCAL -j RETURN
+for net in 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 \
+           192.168.0.0/16 224.0.0.0/4 240.0.0.0/4; do
+    iptables -t nat -A V2RAY -d "$net" -j RETURN
+done
+iptables -t nat -A V2RAY -p tcp -j REDIRECT --to-ports "$PORT"
+iptables -t nat -A PREROUTING -i "$LAN_IF" -p tcp -j V2RAY
 
-# Игнорировать порты веб-панели и SSH
-iptables -t nat -A V2RAY -p tcp --dport 22 -j RETURN      # SSH
-iptables -t nat -A V2RAY -p tcp --dport 80 -j RETURN      # HTTP
-iptables -t nat -A V2RAY -p tcp --dport 8080 -j RETURN    # Admin panel
-iptables -t nat -A V2RAY -p tcp --dport 2017 -j RETURN    # v2rayA UI
-iptables -t nat -A V2RAY -p tcp --dport 443 -j RETURN     # HTTPS
+# killswitch.sh sets INPUT policy DROP; let redirected client connections reach the proxy.
+iptables -I INPUT -i "$LAN_IF" -p tcp --dport "$PORT" -j ACCEPT
 
-# Перенаправить весь остальной TCP трафик на V2Ray (порт 12345)
-iptables -t nat -A V2RAY -p tcp -j REDIRECT --to-ports 12345
-
-# Применить цепочку V2RAY к трафику от WiFi клиентов
-iptables -t nat -A PREROUTING -i wlan0 -p tcp -j V2RAY
-
-# UDP (опционально, если V2Ray настроен на UDP)
-# iptables -t mangle -A V2RAY -p udp -j TPROXY --on-port 12345 --tproxy-mark 1
-# iptables -t mangle -A PREROUTING -i wlan0 -p udp -j V2RAY
-
-echo "✅ V2Ray iptables redirect rules applied"
-echo ""
-echo "Проверка правил:"
-iptables -t nat -L V2RAY -n -v --line-numbers
+echo "V2Ray redirect applied: $LAN_IF tcp -> :$PORT"

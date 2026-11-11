@@ -168,11 +168,9 @@ async function updateTorStatus() {
             torButtonText.textContent = 'Остановить';
             torGauge.classList.add('active');
             torCard.classList.add('active');
-            torChainStatus.textContent = 'Активен';
-            chainTor.classList.add('active');
-            chainTor.classList.remove('optional');
-            arrowTor.classList.add('active');
-            arrowTor.classList.remove('optional');
+            // Experimental: the Tor service runs, but client traffic is not routed through it,
+            // so the chain diagram must not show Tor as an active hop.
+            torChainStatus.textContent = 'Не в цепочке';
         } else {
             torBadge.textContent = 'Отключен';
             torBadge.className = 'service-badge secondary';
@@ -180,11 +178,7 @@ async function updateTorStatus() {
             torButtonText.textContent = 'Включить';
             torGauge.classList.remove('active');
             torCard.classList.remove('active');
-            torChainStatus.textContent = 'Опционально';
-            chainTor.classList.remove('active');
-            chainTor.classList.add('optional');
-            arrowTor.classList.remove('active');
-            arrowTor.classList.add('optional');
+            torChainStatus.textContent = 'Эксперимент';
         }
     } catch (error) {
         console.error('Tor status error:', error);
@@ -272,24 +266,39 @@ function renderWANInterfaces(interfaces, current) {
     const container = document.getElementById('wanInterfaces');
     if (!container || !interfaces) return;
 
-    let html = '';
+    // Built with DOM nodes and textContent, never innerHTML: interface names, addresses and
+    // labels come from the server and must be shown as text, not parsed as HTML.
+    const rows = [];
     for (const [iface, info] of Object.entries(interfaces)) {
-        const isActive = iface === current;
-        const statusClass = info.status === 'up' ? 'up' : 'down';
-        const icon = info.name.includes('Modem') ? '📡' : '🔗';
+        const name = String(info.name || '');
 
-        html += `
-            <div class="wan-interface ${isActive ? 'active' : ''}" onclick="switchWAN('${iface}')">
-                <span class="wan-interface-icon">${icon}</span>
-                <div class="wan-interface-info">
-                    <div class="wan-interface-name">${info.name} (${iface})</div>
-                    <div class="wan-interface-ip">${info.ip || 'Нет IP'}</div>
-                </div>
-                <div class="wan-interface-status ${statusClass}"></div>
-            </div>
-        `;
+        const row = document.createElement('div');
+        row.className = 'wan-interface' + (iface === current ? ' active' : '');
+        row.addEventListener('click', () => switchWAN(iface));
+
+        const icon = document.createElement('span');
+        icon.className = 'wan-interface-icon';
+        icon.textContent = name.includes('Modem') ? '📡' : '🔗';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'wan-interface-name';
+        nameEl.textContent = `${name} (${iface})`;
+
+        const ipEl = document.createElement('div');
+        ipEl.className = 'wan-interface-ip';
+        ipEl.textContent = info.ip || 'Нет IP';
+
+        const infoEl = document.createElement('div');
+        infoEl.className = 'wan-interface-info';
+        infoEl.append(nameEl, ipEl);
+
+        const status = document.createElement('div');
+        status.className = 'wan-interface-status ' + (info.status === 'up' ? 'up' : 'down');
+
+        row.append(icon, infoEl, status);
+        rows.push(row);
     }
-    container.innerHTML = html;
+    container.replaceChildren(...rows);
 }
 
 // Update modem info
@@ -485,15 +494,14 @@ function updateMainStatus() {
 
     const vpnActive = statusData.vpn?.active || false;
     const v2rayActive = statusData.v2ray?.active || false;
-    const torActive = statusData.tor?.active || false;
 
+    // Tor is not counted: it is experimental and does not carry client traffic yet.
     let protectionLevel = 0;
     if (vpnActive) protectionLevel++;
     if (v2rayActive) protectionLevel++;
-    if (torActive) protectionLevel++;
 
     // Calculate ring progress
-    const maxLevel = 3;
+    const maxLevel = 2;
     const circumference = 2 * Math.PI * 18;
     const offset = circumference - (protectionLevel / maxLevel) * circumference;
     statusRing.style.strokeDashoffset = offset;
@@ -635,7 +643,11 @@ async function refreshLogs() {
         const data = await response.json();
 
         const logsElement = document.getElementById('logs');
-        logsElement.innerHTML = '<pre>' + (data.logs || 'Нет логов') + '</pre>';
+        // textContent, not innerHTML: log lines contain text other parties control (usernames
+        // typed at the login form, strings from the VPN server), so they must never be parsed as HTML.
+        const pre = document.createElement('pre');
+        pre.textContent = data.logs || 'Нет логов';
+        logsElement.replaceChildren(pre);
 
         // Auto-scroll to bottom
         logsElement.scrollTop = logsElement.scrollHeight;
@@ -698,10 +710,15 @@ function showToast(message, type = 'info') {
         info: 'ℹ'
     };
 
-    toast.innerHTML = `
-        <span class="toast-icon">${icons[type] || icons.info}</span>
-        <span class="toast-message">${message}</span>
-    `;
+    const iconEl = document.createElement('span');
+    iconEl.className = 'toast-icon';
+    iconEl.textContent = icons[type] || icons.info;
+
+    const messageEl = document.createElement('span');
+    messageEl.className = 'toast-message';
+    messageEl.textContent = message;   // messages can carry server text: show it as text
+
+    toast.append(iconEl, messageEl);
 
     container.appendChild(toast);
 

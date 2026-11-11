@@ -72,8 +72,14 @@ log /var/log/openvpn/openvpn.log
 log-append /var/log/openvpn/openvpn.log
 verb 3
 
-# Для killswitch (блокировка без VPN):
-pull-filter ignore "redirect-gateway"
+# Весь трафик (и роутера, и Wi-Fi клиентов) — через VPN.
+# def1 добавляет маршруты 0.0.0.0/1 и 128.0.0.0/1 через tun0: они точнее,
+# чем default через eth0, поэтому выигрывают, пока VPN поднят.
+# Если VPN упадёт, маршруты исчезнут, и трафик клиентов упрётся в killswitch
+# (FORWARD wlan0 → eth0 DROP, docs/08_FIREWALL.md). НЕ добавляйте
+# pull-filter ignore "redirect-gateway": тогда default остаётся на eth0,
+# killswitch его режет, и у клиентов нет интернета даже при живом VPN.
+redirect-gateway def1
 
 # Сохраните: Ctrl+O, Enter, Ctrl+X
 ```
@@ -107,8 +113,8 @@ echo "nameserver 10.255.255.1" > /etc/resolv.conf
 echo "nameserver 8.8.8.8" >> /etc/resolv.conf
 
 # Уведомить веб-панель о статусе
-echo "connected" > /opt/anon-router/status/vpn-status.txt
-echo "$ifconfig_local" > /opt/anon-router/status/vpn-ip.txt
+echo "connected" > /opt/shadowpi/status/vpn-status.txt
+echo "$ifconfig_local" > /opt/shadowpi/status/vpn-ip.txt
 
 exit 0
 ```
@@ -131,7 +137,7 @@ echo "nameserver 1.1.1.1" > /etc/resolv.conf
 echo "nameserver 8.8.8.8" >> /etc/resolv.conf
 
 # Уведомить веб-панель
-echo "disconnected" > /opt/anon-router/status/vpn-status.txt
+echo "disconnected" > /opt/shadowpi/status/vpn-status.txt
 
 exit 0
 ```
@@ -142,8 +148,8 @@ sudo chmod +x /etc/openvpn/scripts/up.sh
 sudo chmod +x /etc/openvpn/scripts/down.sh
 
 # Создайте папку для статусов
-sudo mkdir -p /opt/anon-router/status
-sudo chown admin:admin /opt/anon-router/status
+sudo mkdir -p /opt/shadowpi/status
+sudo chown admin:admin /opt/shadowpi/status
 ```
 
 ## Шаг 5: Тестирование OpenVPN

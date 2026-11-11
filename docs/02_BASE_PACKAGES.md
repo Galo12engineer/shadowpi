@@ -79,14 +79,16 @@ sudo bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-re
 # Проверка XRay
 xray version
 
-# Установка v2rayA (Web UI)
-# Добавление репозитория
-wget -qO - https://apt.v2raya.org/key/public-key.asc | sudo tee /etc/apt/trusted.gpg.d/v2raya.asc
-
-echo "deb https://apt.v2raya.org/ v2raya main" | sudo tee /etc/apt/sources.list.d/v2raya.list
-
-sudo apt update
-sudo apt install -y v2raya
+# v2rayA (Web UI) - OPTIONAL. The VPN, the kill switch and the panel work without it.
+# Do not use the apt.v2raya.org repository: it serves a certificate chain Debian does not
+# trust, and switching TLS verification off ([trusted=yes], --allow-insecure) is not an option.
+# Install the pinned release from GitHub and check its SHA-256 first
+# (arm64 shown; the installer script has the values for armv7 and x64 too):
+V=2.5.10
+curl -fsSL -o /tmp/v2raya.deb "https://github.com/v2rayA/v2rayA/releases/download/v$V/installer_debian_arm64_$V.deb"
+echo "c4ad561ba36df480222552e3595103ac4ae54d29141c6b03d53edab96ea15f67  /tmp/v2raya.deb" | sha256sum -c -
+# Continue only if the line above printed "OK"
+sudo apt install -y /tmp/v2raya.deb
 
 # Включение и запуск v2rayA
 sudo systemctl enable v2raya
@@ -223,14 +225,14 @@ rfkill list
 
 ```bash
 # Создание папки для нашего проекта
-sudo mkdir -p /opt/anon-router/{scripts,configs,logs,backups}
+sudo mkdir -p /opt/shadowpi/{scripts,configs,logs,backups}
 
 # Права доступа
-sudo chown -R admin:admin /opt/anon-router
+sudo chown -R admin:admin /opt/shadowpi
 
 # Создание папок для логов
-sudo mkdir -p /var/log/anon-router
-sudo chown admin:admin /var/log/anon-router
+sudo mkdir -p /var/log/shadowpi
+sudo chown admin:admin /var/log/shadowpi
 
 echo "✅ Структура директорий создана"
 ```
@@ -290,10 +292,10 @@ bash /tmp/check-packages.sh
 
 ```bash
 # Создайте бэкап дефолтных конфигов
-sudo cp /etc/sysctl.conf /opt/anon-router/backups/sysctl.conf.bak
-sudo cp /etc/dhcpcd.conf /opt/anon-router/backups/dhcpcd.conf.bak 2>/dev/null || true
+sudo cp /etc/sysctl.conf /opt/shadowpi/backups/sysctl.conf.bak
+sudo cp /etc/dhcpcd.conf /opt/shadowpi/backups/dhcpcd.conf.bak 2>/dev/null || true
 
-echo "✅ Бэкапы созданы в /opt/anon-router/backups/"
+echo "✅ Бэкапы созданы в /opt/shadowpi/backups/"
 ```
 
 ## 📊 Проверка использования ресурсов

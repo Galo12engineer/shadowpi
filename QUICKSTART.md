@@ -131,7 +131,7 @@ auth-user-pass /etc/openvpn/auth/windscribe-auth.txt
 # НА PI:
 
 # Запустите все сервисы
-sudo /opt/anon-router/scripts/start-all.sh
+sudo /opt/shadowpi/scripts/start-all.sh
 
 # Подождите 10 секунд
 
@@ -206,6 +206,8 @@ ShadowPi имеет два режима:
 🔒 **Защита**: Хорошая
 
 ### 🟣 Режим "Paranoid" (макс. анонимность)
+
+> ⚠️ **Experimental: does not route traffic yet.** Turning "Paranoid" mode on starts the Tor service on the router, but no firewall rule sends client traffic into Tor, so traffic keeps flowing exactly as in Fast mode (lab check T1 in `docs/LAB.md`). This section describes the design target, not what the router does today. See `docs/ROADMAP.md`.
 
 ```
 [Ты] → [OpenVPN] → [Tor] → [V2Ray/Proxy] → [Интернет]
@@ -286,7 +288,7 @@ sudo sysctl net.ipv4.ip_forward
 # Должно быть = 1
 
 # Перезапустите все
-sudo /opt/anon-router/scripts/restart-all.sh
+sudo /opt/shadowpi/scripts/restart-all.sh
 ```
 
 ### Медленный интернет
