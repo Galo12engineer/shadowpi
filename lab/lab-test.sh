@@ -4,7 +4,8 @@
 # Every check states the CORRECT behaviour; FAIL means the project does not do it yet.
 set -uo pipefail
 cd "$(dirname "$0")"
-mkdir -p out; RES=out/results.md; : > "$RES"
+mkdir -p out; RES=out/results.md
+printf '| ID | Result | Check | Evidence |\n|---|---|---|---|\n' > "$RES"
 SITE=198.51.100.7 VPN_EXIT=172.30.0.20 ROUTER_WAN=172.30.0.10
 R() { docker compose exec -T router bash -c "$1"; }
 C() { docker compose exec -T client sh -c "$1"; }
@@ -22,7 +23,8 @@ panel() { # $1 action, $2 extra POST data; logs in once, uses CSRF for writes
      curl \$B -X POST -d \"action=$1&csrf_token=\$T${2:-}\" http://10.0.0.1:8080/api.php"; }
 
 echo "== Building lab from scratch"
-docker compose down -v >/dev/null 2>&1; docker compose up -d --build >/dev/null 2>&1 || { echo "compose up failed"; exit 1; }
+docker compose down -v >/dev/null 2>&1
+docker compose up -d --build > out/compose.log 2>&1 || { echo "compose up failed, see lab/out/compose.log"; tail -5 out/compose.log; exit 1; }
 for i in $(seq 30); do [ "$(R 'systemctl is-system-running' 2>/dev/null)" = running ] && break; sleep 2; done
 R "chmod 755 /usr/local/sbin/lab-*.sh; lab-netprep.sh" >/dev/null
 
@@ -51,7 +53,7 @@ check P1 "API refuses requests without login" $(echo "$out" | grep -q 'Authentic
 out=$(R "curl -s -u admin:labpanel123 -X POST -d 'action=vpn_status' http://10.0.0.1:8080/api.php")
 lock=$(R "for i in 1 2 3 4 5 6; do curl -s -u admin:labpanel123 -X POST -d 'action=login&username=admin&password=wrong\$i' http://10.0.0.1:8080/auth.php >/dev/null; done
           curl -s -u admin:labpanel123 -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php")
-check P2 "6 wrong passwords (new cookie each) lock the login" $(echo "$lock" | grep -q '"success":true'; [ $? != 0 ]; echo $?) "after 6 failures the correct password still gives: $lock"
+check P2 "6 wrong passwords (new cookie each) lock the login" $(echo "$lock" | grep -q '"success":true'; [ $? != 0 ]; echo $?) "after 6 failures the correct password gives: $(echo "$lock" | grep -o '"success":[a-z]*')"
 # The lockout is now per client address and every lab request comes from the same address,
 # so the next logins would be refused for LOCKOUT_TIME. Removing the counter file = waiting 5 minutes.
 R "rm -f /var/lib/shadowpi/login-attempts.json"
@@ -98,7 +100,7 @@ check X3 "'Start all' does not cut clients off when the proxy is not running" $(
 dns=$(C "nslookup -timeout=3 example.com 10.0.0.1 2>&1 | grep -c 'Address: [0-9]' ")
 check D1 "Client DNS works through the router" $([ "${dns:-0}" -ge 1 ]; echo $?) "answers: $dns"
 logged=$(R "journalctl -u dnsmasq --no-pager | grep -c 'query\[A\] example.com'")
-check D2 "Router does not log clients' DNS queries" $([ "${logged:-0}" = 0 ]; echo $?) "$logged query lines for example.com in the journal (dnsmasq log-queries)"
+check D2 "Router does not log clients' DNS queries" $([ "${logged:-0}" = 0 ]; echo $?) "$logged query lines for example.com in the dnsmasq journal"
 R "systemctl stop tor"; ra=$(panel restart_all); sleep 3
 rs=$(R "/opt/shadowpi/scripts/restart-all.sh 2>&1 | grep -m1 'No such file'")
 check B3 "'Restart all' restarts services" $([ -z "$rs" ]; echo $?) "$rs"
@@ -175,7 +177,3 @@ check K5 "After a reboot the kill switch is on before anything else starts" $(ec
 echo
 echo "PASS $pass  FAIL $fail   (details: lab/out/results.md, logs: lab/out/)"
 { echo; echo "PASS $pass · FAIL $fail · $(date -u '+%Y-%m-%d %H:%M UTC')"; } >> "$RES"
-sed -i '' '1i\
-| ID | Result | Check | Evidence |\
-|---|---|---|---|
-' "$RES" 2>/dev/null || true
