@@ -39,7 +39,7 @@ Device → Wi-Fi → OpenVPN → Tor → V2Ray/Xray proxy → Internet      (des
 
 ## Web panel security
 
-- **Login:** a PHP session login (bcrypt hash set by the installer) behind nginx basic auth. Failed logins are counted on the server per client address, with a growing lockout, so dropping the cookie does not reset them. **Known gap:** nginx basic auth uses the same password and has no lockout, so the password can still be guessed through it (lab check P7, see the roadmap).
+- **Login:** one login, a PHP session (bcrypt hash set by the installer). Failed logins are counted on the server per client address, with a growing lockout, so dropping the cookie does not reset them. There is no second password prompt in nginx: it used the same password without a lockout, so it was removed (lab check P7).
 - **Sessions:** new session ID at login, `HttpOnly` and `SameSite=Strict` cookie, idle timeout and an absolute lifetime. The panel is plain HTTP for now, so the cookie cannot be `Secure` yet.
 - **Default-deny API:** every action needs an authenticated session. Hotspot clients share the router's LAN, so "local network" is not treated as trusted.
 - **State-changing actions** accept POST only, with a CSRF token and per-session rate limiting. They report the real result (exit code or service state), not a fixed "success".

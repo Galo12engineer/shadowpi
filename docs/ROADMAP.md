@@ -10,15 +10,14 @@ means. Items marked **FAIL in the lab** have a check that fails today on purpose
 
 | # | Item | Why it matters | Done when |
 |---|---|---|---|
-| 1 | **nginx basic auth has no lockout** (lab P7, FAIL) | It sits in front of the panel and uses the same password as the PHP login. nginx answers 401 for a wrong password and 200 for the right one, forever, so the server-side lockout (P2) can be bypassed through it. `limit_req` does not help: it would have to limit attempts, and the panel itself sends several requests every 5 s. | Either basic auth is removed (one login with a real lockout), or failed basic-auth attempts are banned (fail2ban on the nginx error log). P7 passes. |
-| 2 | **Tor "Paranoid" mode does not route traffic** (lab T1, FAIL) | The mode only starts the Tor service. It is labelled experimental everywhere (lab T2), but the feature is missing. | `nat PREROUTING -i wlan0`: tcp → TransPort 9040, udp/53 → DNSPort 5353, other UDP dropped; INPUT opened for both ports on `wlan0`; works together with the `V2RAY` chain in the same hook; fails closed when Tor is not bootstrapped. Lab: client traffic reaches TransPort, and with a private Tor network (chutney) the website sees a Tor exit. |
-| 3 | **HTTPS for the panel** | The panel runs on plain HTTP, so the password and the session cookie cross the hotspot unencrypted, readable by any other client that knows the Wi-Fi password. The `Secure` cookie flag is already set automatically once requests arrive over TLS. | nginx serves the panel on 443 with a locally generated certificate; 8080 redirects. |
-| 4 | **SSH is open on `eth0`** | `killswitch.sh` accepts tcp/22 on the WAN-side Ethernet. Fine behind a home router, wrong on an untrusted LAN. | SSH is accepted on the hotspot only by default, with a documented switch for the wired side. |
-| 5 | **CSP still allows `'unsafe-inline'`** | `index.html` uses inline `onclick` handlers, so the policy cannot forbid inline script. The log view and WAN list no longer use `innerHTML`, but there is no automated XSS check. | Handlers move to `app.js`, the CSP drops `'unsafe-inline'`, a headless-browser lab check injects markup into a log line. |
-| 6 | **Xray is installed with `curl … \| bash` from a branch** | Whatever is on that branch at install time runs as root. v2rayA is already pinned by version and SHA-256; Xray is not. | The Xray release is pinned and its checksum verified before it runs. |
-| 7 | **API rate limit is per session** | `check_rate_limit()` counts in `$_SESSION`, the same weakness the login lockout had. Low impact: it only applies after login. | Counters move to the server-side store used for the login lockout. |
-| 8 | **Pinned VPN addresses are refreshed only when `killswitch.sh` runs** | If the provider moves the server while the VPN is down, the VPN cannot reconnect until the script is run again (see docs/08). | A timer re-resolves the `remote` hostnames while the VPN is up and updates the rules. |
-| 9 | **First-setup DNS lookup needs a real resolver in `/etc/resolv.conf`** | With the systemd-resolved stub (`127.0.0.53`) the one-time lookup in `killswitch.sh` cannot work, because the query is sent by another process. | The script detects the stub and uses resolved's upstream servers, or says clearly what to do. |
+| 1 | **Tor "Paranoid" mode does not route traffic** (lab T1, FAIL) | The mode only starts the Tor service. It is labelled experimental everywhere (lab T2), but the feature is missing. | `nat PREROUTING -i wlan0`: tcp → TransPort 9040, udp/53 → DNSPort 5353, other UDP dropped; INPUT opened for both ports on `wlan0`; works together with the `V2RAY` chain in the same hook; fails closed when Tor is not bootstrapped. Lab: client traffic reaches TransPort, and with a private Tor network (chutney) the website sees a Tor exit. |
+| 2 | **HTTPS for the panel** | The panel runs on plain HTTP, so the password and the session cookie cross the hotspot unencrypted, readable by any other client that knows the Wi-Fi password. The `Secure` cookie flag is already set automatically once requests arrive over TLS. | nginx serves the panel on 443 with a locally generated certificate; 8080 redirects. |
+| 3 | **SSH is open on `eth0`** | `killswitch.sh` accepts tcp/22 on the WAN-side Ethernet. Fine behind a home router, wrong on an untrusted LAN. | SSH is accepted on the hotspot only by default, with a documented switch for the wired side. |
+| 4 | **CSP still allows `'unsafe-inline'`** | `index.html` uses inline `onclick` handlers, so the policy cannot forbid inline script. The log view and WAN list no longer use `innerHTML`, but there is no automated XSS check. | Handlers move to `app.js`, the CSP drops `'unsafe-inline'`, a headless-browser lab check injects markup into a log line. |
+| 5 | **Xray is installed with `curl … \| bash` from a branch** | Whatever is on that branch at install time runs as root. v2rayA is already pinned by version and SHA-256; Xray is not. | The Xray release is pinned and its checksum verified before it runs. |
+| 6 | **API rate limit is per session** | `check_rate_limit()` counts in `$_SESSION`, the same weakness the login lockout had. Low impact: it only applies after login. | Counters move to the server-side store used for the login lockout. |
+| 7 | **Pinned VPN addresses are refreshed only when `killswitch.sh` runs** | If the provider moves the server while the VPN is down, the VPN cannot reconnect until the script is run again (see docs/08). | A timer re-resolves the `remote` hostnames while the VPN is up and updates the rules. |
+| 8 | **First-setup DNS lookup needs a real resolver in `/etc/resolv.conf`** | With the systemd-resolved stub (`127.0.0.53`) the one-time lookup in `killswitch.sh` cannot work, because the query is sent by another process. | The script detects the stub and uses resolved's upstream servers, or says clearly what to do. |
 
 ## Firewall
 
@@ -49,7 +48,7 @@ means. Items marked **FAIL in the lab** have a check that fails today on purpose
   tested, or removed from the docs.
 - **`openvpn-systemd-resolved` is installed but not used.** The up/down scripts in docs/03
   write `/etc/resolv.conf` directly. The package pulls in systemd-resolved, which caused the
-  dnsmasq port conflict (lab D1) and complicates the first-setup lookup (item 9 above).
+  dnsmasq port conflict (lab D1) and complicates the first-setup lookup (item 8 above).
   Either use it properly or stop installing it.
 - **docs/11 still suggests `rc.local`** for the kill switch. The installer now enables
   `shadowpi-killswitch.service`; the doc should say that instead.
@@ -60,7 +59,7 @@ means. Items marked **FAIL in the lab** have a check that fails today on purpose
 
 - **CI.** Run `lab/lab-test.sh` on GitHub Actions (arm64 runner; the router container needs
   `privileged` and systemd), upload `lab/out/` as an artifact, and fail the job on any FAIL
-  that is not on a short list of known ones (today: T1, P7).
+  that is not on a short list of known ones (today: T1).
 - **Exit code.** `lab-test.sh` always exits 0; it should exit non-zero on an unexpected FAIL.
 - **Static checks in CI:** `shellcheck` for `scripts/` and `lab/`, `php -l` for `web-ui/`.
 - **Docs language.** The step-by-step guides 00–11 exist in Russian only; README, LAB and
