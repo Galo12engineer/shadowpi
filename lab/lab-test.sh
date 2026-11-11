@@ -37,7 +37,6 @@ R "LAB_SKIP_V2RAYA=1 lab-install.sh" > out/install.log 2>&1; rc=$?
 check I2 "Installer finishes without v2rayA" $rc "exit $rc; $(tail -1 out/install.log)"
 code=$(R "curl -s -o /dev/null -w '%{http_code}' -u admin:labpanel123 'http://10.0.0.1:8080/api.php?action=vpn_status'")
 check I3 "Panel API answers right after install (before reboot)" $([ "$code" = 401 ] || [ "$code" = 200 ]; echo $?) "HTTP $code (php-fpm: $(R 'systemctl is-active php8.2-fpm'))"
-R "systemctl start php8.2-fpm"   # what a reboot would do
 R "LAB_ISP=1 lab-netprep.sh" >/dev/null
 
 echo "== Panel security"

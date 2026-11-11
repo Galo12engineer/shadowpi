@@ -388,10 +388,21 @@ EOF
 ln -sf /etc/nginx/sites-available/shadowpi /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
+# PHP-FPM: apt normally starts it, but not everywhere (image builders, containers, chroots).
+# Start and enable it explicitly, otherwise the panel answers 502 until the next reboot.
+# The unit name carries the PHP version (php8.2-fpm, php8.4-fpm...), so look it up.
+PHP_FPM_UNIT=$(systemctl list-unit-files 'php*-fpm.service' --no-legend 2>/dev/null | awk 'NR==1 {print $1}')
+if [ -n "$PHP_FPM_UNIT" ]; then
+    systemctl enable --now "$PHP_FPM_UNIT"
+else
+    print_error "PHP-FPM unit не найден — веб-панель работать не будет"
+    exit 1
+fi
+
 systemctl enable nginx
 systemctl restart nginx
 
-print_success "Nginx установлен (порт 8080)"
+print_success "Nginx и PHP-FPM запущены (порт 8080)"
 
 ###############################################################################
 # Создание структуры проекта
