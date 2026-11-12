@@ -47,6 +47,12 @@ fi
 echo "▶️  Настройка iptables для V2Ray..."
 /opt/shadowpi/scripts/setup-v2ray-redirect.sh || echo "⚠️  V2Ray redirect не включён — трафик клиентов идёт только через VPN"
 
+# 3b. Tor, only if Paranoid mode is on: its redirect is in place, so without Tor the
+#     clients would have no internet.
+if [ -e /opt/shadowpi/status/tor-mode ]; then
+    start_required "Tor (режим Paranoid)" tor
+fi
+
 # 4. WiFi Hotspot (required)
 start_required "WiFi Hotspot (hostapd)" hostapd
 start_required "DHCP/DNS (dnsmasq)" dnsmasq

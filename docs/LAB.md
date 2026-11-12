@@ -8,7 +8,7 @@ Raspberry Pi. It then checks every claim the project makes from a client's point
 
 ```bash
 cd lab
-make lab-test     # builds everything from scratch, installs twice, runs 39 checks (~10 min)
+make lab-test     # builds everything from scratch, installs twice, runs 42 checks (~10 min)
 make lab-down     # removes the lab
 ```
 
@@ -42,7 +42,7 @@ The website reports which IP it sees:
 | nginx + PHP panel, sudoers | **Real** | Same paths and permissions as on the Pi |
 | `killswitch.sh`, `setup-v2ray-redirect.sh`, `start/stop/restart-all.sh` | **Real** | |
 | OpenVPN client | **Real**, configured word for word from docs/03 | A lab OpenVPN server replaces Windscribe |
-| Tor, Xray, dnsmasq | **Real** packages | |
+| Tor, Xray, dnsmasq | **Real** packages | Tor connects to the real Tor network through the lab VPN (T3) |
 | v2rayA | **Real**, installed from the pinned release (check I4) | The remaining checks run on the second install, where v2rayA is refused on purpose (I2), so they show the router works without it |
 | V2Ray transparent proxy | **Real Xray core** (installed by the installer) with the docs/04 `dokodemo-door` inbound on :12345 | The outbound is `freedom` instead of a VLESS server; the Xray access log proves which connections went through the proxy |
 | Wi-Fi hotspot (hostapd) | **Emulated** | A Docker network named `wlan0` replaces it, so hostapd fails to start |
@@ -72,6 +72,11 @@ or commented in `lab/lab-test.sh`. None of them changes a project file.
 7. **Dummy 4G interfaces** (`lab/router/lab-4g.sh`) and a **one-name DNS server** on the
    website container, for the kill switch checks K3a, K3b and K6.
 
+8. **TCP checksums fixed on the lab VPN server.** Docker Desktop delivers packets from the real
+   internet with TCP checksums that were never filled in. Forwarded into the VPN tunnel they
+   were dropped by the router. The server recomputes them (`tc … action csum`), so the router
+   can reach the real Tor network.
+
 The OpenVPN client lines are read from `docs/03_OPENVPN_SETUP.md` itself, so a change to the doc is tested automatically.
 
 ## Second round: hotfix (10–11.11.2026)
@@ -99,8 +104,11 @@ Each fix was followed by a full lab run from scratch. "Before" is the first-run 
 | I1 | FAIL | PASS | v2rayA is optional and no longer comes from `apt.v2raya.org` (its certificate chain is not trusted by Debian; TLS checks are not disabled). A pinned release is installed only if its SHA-256 matches. |
 | I4 | new | PASS | v2rayA really is installed from the pinned release and runs. |
 | I5 | new | PASS | The installer does not print the Wi-Fi or panel password and does not pass the panel password as a process argument; the files that hold them are not world-readable. |
-| T1 | FAIL | **FAIL** | Not fixed on purpose: Tor "Paranoid" mode still does not route traffic. It is now labelled experimental in README, ARCHITECTURE, `toggle-tor.sh` and the panel (T2). Roadmap. |
-| T2 | new | PASS | The labels are there. |
+| T1 | FAIL | PASS | Paranoid mode now routes: client TCP goes to Tor's TransPort and client DNS to its DNSPort (`setup-tor-redirect.sh`), and Tor itself goes out through the VPN. It was first only labelled experimental, then implemented. If Tor is down, clients have no internet; they never fall back to the plain VPN. |
+| T3 | new | PASS | A real website (check.torproject.org) sees a Tor exit. The lab router reaches the real Tor network through the lab VPN server. |
+| T4 | new | PASS | Client traffic Tor cannot carry (ICMP, UDP) is dropped instead of leaving through the VPN. |
+| T5 | new | PASS | Re-running `killswitch.sh` (which flushes every rule) puts the Tor redirect back, so clients do not silently fall back to the plain VPN. |
+| T2 | new | PASS | Turning the mode off removes the rules and puts clients back on the VPN. (Before Tor routing existed, T2 checked the "experimental" labels.) |
 
 Also fixed without a lab check: the log view and the WAN list in the panel no longer use
 `innerHTML` (stored XSS through log content), and a dead "local network" check was removed
@@ -140,8 +148,11 @@ every line (what the website saw, what the panel answered) is in `lab/out/result
 | D1 | PASS | Client DNS works through the router |
 | D2 | PASS | Router does not log clients' DNS queries |
 | B3 | PASS | 'Restart all' restarts services |
-| T1 | **FAIL** | Tor 'Paranoid' mode sends client traffic into Tor |
-| T2 | PASS | While T1 fails, Tor mode is labelled experimental (toggle-tor.sh output and panel) |
+| T1 | PASS | Tor 'Paranoid' mode sends client traffic into Tor |
+| T3 | PASS | In Paranoid mode a real website sees a Tor exit (needs the real Tor network) |
+| T4 | PASS | In Paranoid mode client traffic Tor cannot carry (ICMP, UDP) is dropped, not sent through the VPN |
+| T5 | PASS | Re-running the kill switch keeps Paranoid mode on (no silent fall back to the plain VPN) |
+| T2 | PASS | Turning Paranoid mode off puts clients back on the VPN |
 | X1 | PASS | V2Ray redirect script applies cleanly when the proxy listens |
 | X4 | PASS | Running the script twice leaves one rule set |
 | X2.80 | PASS | Client → site:80 goes through V2Ray, then the VPN |
@@ -157,12 +168,12 @@ every line (what the website saw, what the panel answered) is in `lab/out/result
 | K6 | PASS | VPN reconnects under the kill switch when 'remote' is a hostname |
 | K5 | PASS | After a reboot the kill switch is on before anything else starts |
 
-PASS 38 · FAIL 1 · 2026-11-11 10:41 UTC
+PASS 42 · FAIL 0 · 2026-11-12 20:22 UTC
 
-The one remaining FAIL (T1) is known and deliberate: the lab states the correct behaviour
-and the project does not do it yet. It is in [ROADMAP.md](ROADMAP.md).
+No check fails. What the lab cannot cover (hardware, a V2Ray hop after Tor) is in
+[ROADMAP.md](ROADMAP.md).
 
-Progress: first run 8 PASS / 16 FAIL → V1 fix 9 / 15 → path fix, plus the new check X3: 12 / 13 (25 checks) → V2Ray fix, plus X4 and X5: 19 / 10 (29 checks) → hotfix round, plus 12 new checks and K3 split in two: 37 / 2 (39 checks) → nginx basic auth removed (P7): **38 PASS / 1 FAIL (39 checks)**.
+Progress: first run 8 PASS / 16 FAIL → V1 fix 9 / 15 → path fix, plus the new check X3: 12 / 13 (25 checks) → V2Ray fix, plus X4 and X5: 19 / 10 (29 checks) → hotfix round, plus 12 new checks and K3 split in two: 37 / 2 (39 checks) → nginx basic auth removed (P7): 38 / 1 (39 checks) → Tor routing implemented, plus T3, T4 and T5: **42 PASS / 0 FAIL (42 checks)**.
 
 ## History: findings from the first run (10.11.2026)
 

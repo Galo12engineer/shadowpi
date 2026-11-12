@@ -211,6 +211,16 @@ if [ ${#PINNED_HOSTS[@]} -gt 0 ]; then
     echo "  → VPN hostnames pinned in /etc/hosts"
 fi
 
+# ═══ Paranoid (Tor) mode ═══
+
+# This script has just flushed every rule, including the Tor redirect. If Paranoid mode is
+# on, put it back, forced: without it the clients would silently go through the plain VPN.
+# If Tor is not running (early boot), they have no internet until it is.
+if [ -e /opt/shadowpi/status/tor-mode ] && [ -x /opt/shadowpi/scripts/setup-tor-redirect.sh ]; then
+    /opt/shadowpi/scripts/setup-tor-redirect.sh --force
+    echo "  → Paranoid mode: Tor redirect re-applied"
+fi
+
 # Save the rules
 if command -v iptables-save &> /dev/null; then
     mkdir -p /etc/iptables

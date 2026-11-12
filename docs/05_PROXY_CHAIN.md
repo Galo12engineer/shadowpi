@@ -47,7 +47,7 @@
 
 ### 🟣 Режим "Paranoid" (OpenVPN → Tor → V2Ray) ⭐
 
-> ⚠️ **Experimental: does not route traffic yet.** Turning "Paranoid" mode on starts the Tor service on the router, but no firewall rule sends client traffic into Tor, so traffic keeps flowing exactly as in Fast mode (lab check T1 in `docs/LAB.md`). This section describes the design target, not what the router does today. See `docs/ROADMAP.md`.
+> ⚠️ **What Paranoid mode really does.** Client TCP and DNS go through Tor, and Tor itself goes out through the VPN tunnel (lab checks T1, T3 and T4 in `docs/LAB.md`). Other client traffic (UDP, ICMP) is dropped. The V2Ray hop **after** Tor described in this section is **not implemented**: the Tor exit node sees the traffic like any other Tor exit does. See `docs/ROADMAP.md`.
 
 ```
 [Ты] → [WiFi] → [OpenVPN] → [Tor Network] → [V2Ray/Proxy] → [Интернет]
@@ -366,7 +366,7 @@ curl -x socks5://127.0.0.1:10808 https://ipinfo.io
 
 ## 🔥 Настройка цепи OpenVPN → V2Ray → Tor
 
-> ⚠️ **Experimental: does not route traffic yet.** Turning "Paranoid" mode on starts the Tor service on the router, but no firewall rule sends client traffic into Tor, so traffic keeps flowing exactly as in Fast mode (lab check T1 in `docs/LAB.md`). This section describes the design target, not what the router does today. See `docs/ROADMAP.md`.
+> ⚠️ **What Paranoid mode really does.** Client TCP and DNS go through Tor, and Tor itself goes out through the VPN tunnel (lab checks T1, T3 and T4 in `docs/LAB.md`). Other client traffic (UDP, ICMP) is dropped. The V2Ray hop **after** Tor described in this section is **not implemented**: the Tor exit node sees the traffic like any other Tor exit does. See `docs/ROADMAP.md`.
 
 ### Шаг 1: Убедитесь что OpenVPN и V2Ray работают
 

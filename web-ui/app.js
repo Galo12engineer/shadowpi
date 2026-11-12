@@ -168,9 +168,12 @@ async function updateTorStatus() {
             torButtonText.textContent = 'Остановить';
             torGauge.classList.add('active');
             torCard.classList.add('active');
-            // Experimental: the Tor service runs, but client traffic is not routed through it,
-            // so the chain diagram must not show Tor as an active hop.
-            torChainStatus.textContent = 'Не в цепочке';
+            // data.active = Paranoid mode: the Tor redirect is applied, clients go through Tor.
+            torChainStatus.textContent = data.service ? 'Активен' : 'Tor не запущен!';
+            chainTor.classList.add('active');
+            chainTor.classList.remove('optional');
+            arrowTor.classList.add('active');
+            arrowTor.classList.remove('optional');
         } else {
             torBadge.textContent = 'Отключен';
             torBadge.className = 'service-badge secondary';
@@ -178,7 +181,11 @@ async function updateTorStatus() {
             torButtonText.textContent = 'Включить';
             torGauge.classList.remove('active');
             torCard.classList.remove('active');
-            torChainStatus.textContent = 'Эксперимент';
+            torChainStatus.textContent = 'Опционально';
+            chainTor.classList.remove('active');
+            chainTor.classList.add('optional');
+            arrowTor.classList.remove('active');
+            arrowTor.classList.add('optional');
         }
     } catch (error) {
         console.error('Tor status error:', error);

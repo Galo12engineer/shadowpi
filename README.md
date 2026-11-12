@@ -6,7 +6,7 @@
   <img src="docs/project-banner.png" alt="ShadowPi architecture" width="600">
 </p>
 
-ShadowPi turns a Raspberry Pi 4 into a Wi-Fi router that sends every connected device through a VPN and, optionally, an obfuscation proxy. A kill switch blocks traffic whenever the tunnel is down. A Tor layer is planned and currently experimental (see below).
+ShadowPi turns a Raspberry Pi 4 into a Wi-Fi router that sends every connected device through a VPN and, optionally, an obfuscation proxy. A kill switch blocks traffic whenever the tunnel is down. In Paranoid mode clients go through Tor instead (see below).
 
 > **Status:** the installer, the firewall scripts and the web panel are tested end to end in a Docker lab that runs the real code on Debian arm64 ([docs/LAB.md](docs/LAB.md): what is real, what is emulated, every check and its result). The project has **not been run on real hardware yet**: Wi-Fi radio, 4G modem and performance are not covered. Known gaps are in [docs/ROADMAP.md](docs/ROADMAP.md). The step-by-step guides 00–11 are in Russian.
 
@@ -18,19 +18,21 @@ ShadowPi turns a Raspberry Pi 4 into a Wi-Fi router that sends every connected d
 Device → Wi-Fi (hostapd) → OpenVPN → V2Ray/Xray proxy → Internet
 ```
 
-**Paranoid mode (+ Tor): experimental, does not route traffic yet**
+**Paranoid mode (+ Tor)**
 
 ```
-Device → Wi-Fi → OpenVPN → Tor → V2Ray/Xray proxy → Internet      (design target)
+Device → Wi-Fi → Tor → Internet        (Tor itself goes out through the OpenVPN tunnel)
 ```
 
-`toggle-tor.sh paranoid` and the panel's Tor button start the Tor service, but no firewall rule sends client traffic into Tor. Traffic keeps flowing exactly as in Fast mode. The lab proves this (check T1 in [docs/LAB.md](docs/LAB.md)); real transparent routing through Tor is on the [roadmap](docs/ROADMAP.md).
+`toggle-tor.sh paranoid` or the panel's Tor button sends every client TCP connection and all client DNS into Tor. Client traffic Tor cannot carry (UDP, ICMP) is dropped, and if Tor is not connected the clients have no internet: they never fall back to the plain VPN. The lab checks this against the real Tor network (T1, T3, T4 in [docs/LAB.md](docs/LAB.md)).
+
+Not implemented: a V2Ray/Xray hop **after** Tor. The Tor exit node sees the traffic like any other Tor exit does ([roadmap](docs/ROADMAP.md)).
 
 ## Features
 
 | Area | What it does |
 |---|---|
-| Tunnels | OpenVPN as the base tunnel, V2Ray/Xray for obfuscation. Tor layer: experimental, the service starts but traffic is not routed through it yet |
+| Tunnels | OpenVPN as the base tunnel, V2Ray/Xray for obfuscation. Paranoid mode: client TCP and DNS through Tor, with Tor going out through the VPN |
 | Leak protection | iptables kill switch applied at boot before the network: clients and the router itself get out only through the tunnel, the router may contact only the VPN server's own address and port, on any WAN interface. IPv6 disabled. No DNS query logging |
 | Uplinks | Ethernet or a USB 4G/LTE modem, with WAN switching (`wan-switch.sh`) and modem setup via ModemManager. The kill switch is tested on modem interface names; automatic failover is not verified (needs hardware) |
 | Hotspot | hostapd + dnsmasq, local `anonrouter.local` name |

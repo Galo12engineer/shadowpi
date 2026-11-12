@@ -8,7 +8,7 @@
 
 ```bash
 cd lab
-make lab-test     # збирає все з нуля, двічі встановлює систему, виконує 39 перевірок (~10 хв)
+make lab-test     # збирає все з нуля, двічі встановлює систему, виконує 42 перевірки (~10 хв)
 make lab-down     # видаляє лабораторію
 ```
 
@@ -42,7 +42,7 @@ make lab-down     # видаляє лабораторію
 | Панель nginx + PHP, sudoers | **Справжні** | Ті самі шляхи й права, що на Pi |
 | `killswitch.sh`, `setup-v2ray-redirect.sh`, `start/stop/restart-all.sh` | **Справжні** | |
 | Клієнт OpenVPN | **Справжній**, налаштований слово в слово за docs/03 | Замість Windscribe — лабораторний сервер OpenVPN |
-| Tor, Xray, dnsmasq | **Справжні** пакети | |
+| Tor, Xray, dnsmasq | **Справжні** пакети | Tor підключається до справжньої мережі Tor через лабораторний VPN (T3) |
 | v2rayA | **Справжній**, ставиться із закріпленого релізу (перевірка I4) | Решта перевірок іде на другому встановленні, де v2rayA навмисно відхилено (I2), і показує, що роутер працює без нього |
 | Прозорий проксі V2Ray | **Справжнє ядро Xray** (ставить інсталятор) з inbound `dokodemo-door` із docs/04 на :12345 | Outbound — `freedom` замість VLESS-сервера; журнал доступу Xray показує, які з'єднання пройшли через проксі |
 | Wi-Fi хотспот (hostapd) | **Емулюється** | Його замінює Docker-мережа з іменем `wlan0`, тому hostapd не запускається |
@@ -72,6 +72,11 @@ make lab-down     # видаляє лабораторію
 7. **Dummy-інтерфейси 4G** (`lab/router/lab-4g.sh`) і **DNS-сервер з одним іменем** на
    контейнері сайту — для перевірок kill switch K3a, K3b і K6.
 
+8. **Виправлення контрольних сум TCP на лабораторному VPN-сервері.** Docker Desktop віддає
+   пакети зі справжнього інтернету з незаповненими контрольними сумами TCP. Після пересилання у
+   VPN-тунель роутер їх відкидав. Сервер перераховує їх (`tc … action csum`), тому роутер може
+   дістатися справжньої мережі Tor.
+
 Рядки клієнта OpenVPN читаються прямо з `docs/03_OPENVPN_SETUP.md`, тому зміна документа
 тестується автоматично.
 
@@ -100,8 +105,11 @@ make lab-down     # видаляє лабораторію
 | I1 | FAIL | PASS | v2rayA необов'язковий і більше не береться з `apt.v2raya.org` (його ланцюжку сертифікатів Debian не довіряє; перевірки TLS не вимикаються). Закріплений реліз ставиться, лише якщо збігся SHA-256. |
 | I4 | нова | PASS | v2rayA справді ставиться із закріпленого релізу й працює. |
 | I5 | нова | PASS | Інсталятор не друкує паролі Wi-Fi та панелі й не передає пароль панелі аргументом процесу; файли з паролями недоступні іншим користувачам. |
-| T1 | FAIL | **FAIL** | Навмисно не виправлено: режим Tor «Paranoid» досі не маршрутизує трафік. Тепер його позначено як експериментальний у README, ARCHITECTURE, `toggle-tor.sh` і панелі (T2). План робіт. |
-| T2 | нова | PASS | Позначки на місці. |
+| T1 | FAIL | PASS | Режим Paranoid тепер маршрутизує: TCP клієнтів іде на TransPort Tor, їхній DNS — на DNSPort (`setup-tor-redirect.sh`), а сам Tor виходить через VPN. Спочатку режим лише позначили експериментальним, потім реалізували. Якщо Tor не працює, клієнти не мають інтернету; на звичайний VPN вони не відкочуються. |
+| T3 | нова | PASS | Справжній сайт (check.torproject.org) бачить вихідний вузол Tor. Лабораторний роутер дістається справжньої мережі Tor через лабораторний VPN-сервер. |
+| T4 | нова | PASS | Трафік клієнтів, який Tor не вміє переносити (ICMP, UDP), відкидається, а не виходить через VPN. |
+| T5 | нова | PASS | Повторний запуск `killswitch.sh` (він скидає всі правила) повертає редирект у Tor, тому клієнти не відкочуються мовчки на звичайний VPN. |
+| T2 | нова | PASS | Вимкнення режиму прибирає правила й повертає клієнтів на VPN. (Поки маршрутизації через Tor не було, T2 перевіряла позначки «експериментальний».) |
 
 Також виправлено без перевірки в лабораторії: перегляд логів і список WAN у панелі більше не
 використовують `innerHTML` (збережена XSS через вміст логів), а з `api.php` видалено мертву
@@ -142,8 +150,11 @@ make lab-down     # видаляє лабораторію
 | D1 | PASS | Client DNS works through the router |
 | D2 | PASS | Router does not log clients' DNS queries |
 | B3 | PASS | 'Restart all' restarts services |
-| T1 | **FAIL** | Tor 'Paranoid' mode sends client traffic into Tor |
-| T2 | PASS | While T1 fails, Tor mode is labelled experimental (toggle-tor.sh output and panel) |
+| T1 | PASS | Tor 'Paranoid' mode sends client traffic into Tor |
+| T3 | PASS | In Paranoid mode a real website sees a Tor exit (needs the real Tor network) |
+| T4 | PASS | In Paranoid mode client traffic Tor cannot carry (ICMP, UDP) is dropped, not sent through the VPN |
+| T5 | PASS | Re-running the kill switch keeps Paranoid mode on (no silent fall back to the plain VPN) |
+| T2 | PASS | Turning Paranoid mode off puts clients back on the VPN |
 | X1 | PASS | V2Ray redirect script applies cleanly when the proxy listens |
 | X4 | PASS | Running the script twice leaves one rule set |
 | X2.80 | PASS | Client → site:80 goes through V2Ray, then the VPN |
@@ -159,15 +170,15 @@ make lab-down     # видаляє лабораторію
 | K6 | PASS | VPN reconnects under the kill switch when 'remote' is a hostname |
 | K5 | PASS | After a reboot the kill switch is on before anything else starts |
 
-PASS 38 · FAIL 1 · 2026-11-11 10:41 UTC
+PASS 42 · FAIL 0 · 2026-11-12 20:22 UTC
 
-Єдиний FAIL, що залишився (T1), відомий і залишений навмисно: лабораторія описує правильну
-поведінку, а проєкт її поки не забезпечує. Він є в [ROADMAP.ua.md](ROADMAP.ua.md).
+Жодна перевірка не падає. Те, що лабораторія покрити не може (залізо, хоп V2Ray після Tor),
+описано в [ROADMAP.ua.md](ROADMAP.ua.md).
 
 Перебіг робіт: перший прогін 8 PASS / 16 FAIL → виправлення V1: 9 / 15 → виправлення шляхів і
 нова перевірка X3: 12 / 13 (25 перевірок) → виправлення V2Ray, плюс X4 і X5: 19 / 10
 (29 перевірок) → hotfix-раунд, плюс 12 нових перевірок і K3, розділена на дві:
-37 / 2 (39 перевірок) → прибрано nginx basic auth (P7): **38 PASS / 1 FAIL (39 перевірок)**.
+37 / 2 (39 перевірок) → прибрано nginx basic auth (P7): 38 / 1 (39 перевірок) → реалізовано маршрутизацію через Tor, плюс T3, T4 і T5: **42 PASS / 0 FAIL (42 перевірки)**.
 
 ## Історія: знахідки першого прогону (10.11.2026)
 

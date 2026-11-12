@@ -499,7 +499,8 @@ Cmnd_Alias SHADOWPI_SVC = /usr/bin/systemctl start openvpn-windscribe, /usr/bin/
                           /usr/bin/systemctl start dnsmasq, /usr/bin/systemctl stop dnsmasq, /usr/bin/systemctl restart dnsmasq
 Cmnd_Alias SHADOWPI_SCRIPTS = /opt/shadowpi/scripts/start-all.sh, /opt/shadowpi/scripts/stop-all.sh, \
                               /opt/shadowpi/scripts/restart-all.sh, /opt/shadowpi/scripts/test-all.sh, \
-                              /opt/shadowpi/scripts/wan-switch.sh *, /opt/shadowpi/scripts/setup-modem.sh *
+                              /opt/shadowpi/scripts/wan-switch.sh *, /opt/shadowpi/scripts/setup-modem.sh *, \
+                              /opt/shadowpi/scripts/toggle-tor.sh on, /opt/shadowpi/scripts/toggle-tor.sh off
 www-data ALL=(root) NOPASSWD: SHADOWPI_SVC, SHADOWPI_SCRIPTS
 EOF
 chmod 0440 /etc/sudoers.d/shadowpi
