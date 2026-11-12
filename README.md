@@ -36,13 +36,14 @@ Not implemented: a V2Ray/Xray hop **after** Tor. The Tor exit node sees the traf
 | Leak protection | iptables kill switch applied at boot before the network: clients and the router itself get out only through the tunnel, the router may contact only the VPN server's own address and port, on any WAN interface. IPv6 disabled. No DNS query logging |
 | Uplinks | Ethernet or a USB 4G/LTE modem, with WAN switching (`wan-switch.sh`) and modem setup via ModemManager. The kill switch is tested on modem interface names; automatic failover is not verified (needs hardware) |
 | Hotspot | hostapd + dnsmasq, local `anonrouter.local` name |
-| Web panel | nginx + PHP control panel on port 8080 |
+| Web panel | nginx + PHP control panel over HTTPS (port 443, self-signed certificate) |
 | Testing | `test-all.sh`: public IP, DNS and IPv6 leaks, service status, VPN and hotspot checks, firewall rules |
 
 ## Web panel security
 
 - **Login:** one login, a PHP session (bcrypt hash set by the installer). Failed logins are counted on the server per client address, with a growing lockout, so dropping the cookie does not reset them. There is no second password prompt in nginx: it used the same password without a lockout, so it was removed (lab check P7).
-- **Sessions:** new session ID at login, `HttpOnly` and `SameSite=Strict` cookie, idle timeout and an absolute lifetime. The panel is plain HTTP for now, so the cookie cannot be `Secure` yet.
+- **Sessions:** new session ID at login, `Secure`, `HttpOnly` and `SameSite=Strict` cookie, idle timeout and an absolute lifetime.
+- **HTTPS:** the panel is served over TLS with a self-signed certificate created by the installer; plain HTTP on port 8080 only redirects and never accepts a password.
 - **Default-deny API:** every action needs an authenticated session. Hotspot clients share the router's LAN, so "local network" is not treated as trusted.
 - **State-changing actions** accept POST only, with a CSRF token and per-session rate limiting. They report the real result (exit code or service state), not a fixed "success".
 - **Least-privilege sudo:** `www-data` may run only a fixed list of `systemctl` units and root-owned scripts (`/etc/sudoers.d/shadowpi`, checked with `visudo`).
@@ -75,8 +76,10 @@ v2rayA is optional. The installer downloads a pinned release and installs it onl
 
 | Panel | URL |
 |---|---|
-| ShadowPi | `http://anonrouter.local:8080` |
+| ShadowPi | `https://anonrouter.local` |
 | v2rayA (if installed) | `http://anonrouter.local:2017` |
+
+The panel certificate is self-signed, so the browser asks once to accept it. The installer prints its SHA-256 fingerprint; compare the two before accepting.
 
 ## Test lab
 
@@ -86,7 +89,7 @@ No Raspberry Pi is needed to check the claims above:
 cd lab && ./lab-test.sh     # needs Docker; builds everything from scratch, takes a few minutes
 ```
 
-The lab runs the real installer and scripts and tests them from a client's point of view (which IP does a website see, what leaves when the VPN is down, what the panel answers). Results and findings: [docs/LAB.md](docs/LAB.md).
+The lab runs the real installer and scripts and tests them from a client's point of view (which IP does a website see, what leaves when the VPN is down, what the panel answers). Results and findings: [docs/LAB.md](docs/LAB.md). The same lab and static checks (ShellCheck, PHP and JavaScript syntax) run in GitHub Actions on every push and pull request.
 
 ## Repository layout
 

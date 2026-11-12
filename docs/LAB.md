@@ -8,7 +8,7 @@ Raspberry Pi. It then checks every claim the project makes from a client's point
 
 ```bash
 cd lab
-make lab-test     # builds everything from scratch, installs twice, runs 42 checks (~10 min)
+make lab-test     # builds everything from scratch, installs twice, runs 43 checks (~10 min)
 make lab-down     # removes the lab
 ```
 
@@ -77,6 +77,10 @@ or commented in `lab/lab-test.sh`. None of them changes a project file.
    were dropped by the router. The server recomputes them (`tc … action csum`), so the router
    can reach the real Tor network.
 
+9. **The panel certificate is accepted once.** It is self-signed, so the lab adds it to the
+   router's trust store, as an admin accepts it in a browser. After that every panel request
+   verifies the certificate for real.
+
 The OpenVPN client lines are read from `docs/03_OPENVPN_SETUP.md` itself, so a change to the doc is tested automatically.
 
 ## Second round: hotfix (10–11.11.2026)
@@ -88,6 +92,7 @@ Each fix was followed by a full lab run from scratch. "Before" is the first-run 
 | D2 | FAIL | PASS | `log-queries` / `log-dhcp` removed from the dnsmasq config (installer and docs/06). |
 | P4 | FAIL | PASS | New session ID at login. One `start_secure_session()` for all entry points: strict mode, `HttpOnly`, `SameSite=Strict`, `Secure` only over HTTPS. |
 | P5, P6 | new | PASS | Cookie flags; idle timeout (`SESSION_LIFETIME`) and an absolute lifetime, because the open panel polls every 5 s and would never go idle. |
+| H1 | new | PASS | The panel is served over HTTPS with a self-signed certificate valid for `10.0.0.1` and `anonrouter.local`; port 8080 only redirects. The session cookie is now also `Secure` (P5). |
 | P2 | FAIL | PASS | Failed logins are counted in `/var/lib/shadowpi/login-attempts.json` (flock) per client address, with a doubling lockout and a global counter. Checked before the password; fails closed if the file cannot be used. |
 | P7 | new | PASS | nginx basic auth in front of the panel used the same password and had no lockout, so P2 could be bypassed through it. First recorded as a FAIL, then the nginx layer was removed: the panel login with its server-side lockout is the only gate. |
 | B2 | FAIL | PASS | `start-all.sh`, `stop-all.sh`, `restart-all.sh` exit non-zero when a required step fails; the API returns that exit code. `startWiFi` checks dnsmasq too. |
@@ -129,13 +134,14 @@ every line (what the website saw, what the panel answered) is in `lab/out/result
 | I4 | PASS | v2rayA is installed from the pinned release (SHA-256 checked) and runs |
 | I2 | PASS | Installer refuses v2rayA with a wrong SHA-256 and still finishes |
 | I5 | PASS | Installer does not print the Wi-Fi or panel password, and keeps them in non-world-readable files |
+| H1 | PASS | Panel is served over HTTPS with a certificate valid for its address; plain HTTP only redirects |
 | I3 | PASS | Panel API answers right after install (before reboot) |
 | P1 | PASS | API refuses requests without login |
 | P2 | PASS | 6 wrong passwords (new cookie each) lock the login |
 | P7 | PASS | Panel password cannot be guessed without limit through nginx basic auth |
 | P3 | PASS | Write action without CSRF token is refused |
 | P4 | PASS | Session ID changes at login (no session fixation) |
-| P5 | PASS | Session cookie is HttpOnly and SameSite=Strict |
+| P5 | PASS | Session cookie is Secure, HttpOnly and SameSite=Strict |
 | P6 | PASS | Idle session expires (SESSION_LIFETIME) |
 | V1 | PASS | Client reaches the internet through the VPN (docs config) |
 | V2 | PASS | Panel shows the VPN IP |
@@ -168,12 +174,12 @@ every line (what the website saw, what the panel answered) is in `lab/out/result
 | K6 | PASS | VPN reconnects under the kill switch when 'remote' is a hostname |
 | K5 | PASS | After a reboot the kill switch is on before anything else starts |
 
-PASS 42 · FAIL 0 · 2026-11-12 20:22 UTC
+PASS 43 · FAIL 0 · SKIP 0 · 2026-11-12 20:51 UTC
 
 No check fails. What the lab cannot cover (hardware, a V2Ray hop after Tor) is in
 [ROADMAP.md](ROADMAP.md).
 
-Progress: first run 8 PASS / 16 FAIL → V1 fix 9 / 15 → path fix, plus the new check X3: 12 / 13 (25 checks) → V2Ray fix, plus X4 and X5: 19 / 10 (29 checks) → hotfix round, plus 12 new checks and K3 split in two: 37 / 2 (39 checks) → nginx basic auth removed (P7): 38 / 1 (39 checks) → Tor routing implemented, plus T3, T4 and T5: **42 PASS / 0 FAIL (42 checks)**.
+Progress: first run 8 PASS / 16 FAIL → V1 fix 9 / 15 → path fix, plus the new check X3: 12 / 13 (25 checks) → V2Ray fix, plus X4 and X5: 19 / 10 (29 checks) → hotfix round, plus 12 new checks and K3 split in two: 37 / 2 (39 checks) → nginx basic auth removed (P7): 38 / 1 (39 checks) → Tor routing implemented, plus T3, T4 and T5: 42 / 0 (42 checks) → HTTPS for the panel (H1): **43 PASS / 0 FAIL (43 checks)**.
 
 ## History: findings from the first run (10.11.2026)
 

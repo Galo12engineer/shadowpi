@@ -400,10 +400,35 @@ apt install -y nginx php-fpm php-cli php-common
 rm -f /etc/nginx/auth/htpasswd
 
 # Nginx конфигурация для веб-панели
+# TLS for the panel. Over plain HTTP the panel password and the session cookie crossed the
+# hotspot unencrypted, readable by any other Wi-Fi client. The certificate is self-signed
+# (there is no public name to get one for), so the browser asks once to accept it; compare
+# the SHA-256 fingerprint printed at the end of this installer before you do.
+install -d -m 0755 /etc/ssl/shadowpi
+if [ ! -s /etc/ssl/shadowpi/panel.crt ] || [ ! -s /etc/ssl/shadowpi/panel.key ]; then
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
+        -keyout /etc/ssl/shadowpi/panel.key -out /etc/ssl/shadowpi/panel.crt \
+        -subj "/CN=anonrouter.local" \
+        -addext "subjectAltName=DNS:anonrouter.local,IP:10.0.0.1" 2>/dev/null
+fi
+chmod 0600 /etc/ssl/shadowpi/panel.key
+chmod 0644 /etc/ssl/shadowpi/panel.crt
+
 cat > /etc/nginx/sites-available/shadowpi << 'EOF'
+# Old address: plain HTTP only redirects, it never serves the panel or accepts a password.
 server {
     listen 8080;
     server_name _;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate     /etc/ssl/shadowpi/panel.crt;
+    ssl_certificate_key /etc/ssl/shadowpi/panel.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
 
     root /var/www/shadowpi;
     index index.php index.html;
@@ -440,7 +465,7 @@ fi
 systemctl enable nginx
 systemctl restart nginx
 
-print_success "Nginx и PHP-FPM запущены (порт 8080)"
+print_success "Nginx и PHP-FPM запущены (HTTPS, порт 443; 8080 перенаправляет)"
 
 ###############################################################################
 # Создание структуры проекта
@@ -577,7 +602,9 @@ echo "   SSID: $WIFI_SSID"
 echo "   Пароль: тот, что вы ввели в начале (здесь не показывается)"
 echo ""
 echo -e "${BLUE}🌐 Веб-панели:${NC}"
-echo "   Панель управления: http://anonrouter.local:8080"
+echo "   Панель управления: https://anonrouter.local  (или https://10.0.0.1)"
+echo "     Сертификат самоподписанный: браузер один раз спросит подтверждение."
+echo "     Сверьте отпечаток: $(openssl x509 -in /etc/ssl/shadowpi/panel.crt -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2)"
 echo "     Логин: admin"
 echo "     Пароль: тот, что вы ввели в начале (здесь не показывается)"
 echo ""

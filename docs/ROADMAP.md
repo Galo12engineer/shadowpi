@@ -11,13 +11,12 @@ means. Items marked **FAIL in the lab** have a check that fails today on purpose
 | # | Item | Why it matters | Done when |
 |---|---|---|---|
 | 1 | **No V2Ray hop after Tor** | Paranoid mode now routes client TCP and DNS through Tor (lab T1, T3, T4). The original design was VPN → Tor → V2Ray, so that the Tor exit sees only encrypted proxy traffic. Today the exit sees the traffic like any Tor exit does, and the V2Ray redirect is bypassed while the mode is on. | In Paranoid mode Xray's outbound goes through Tor's SOCKS port, and a lab check shows that the exit node sees only the connection to the proxy. |
-| 2 | **HTTPS for the panel** | The panel runs on plain HTTP, so the password and the session cookie cross the hotspot unencrypted, readable by any other client that knows the Wi-Fi password. The `Secure` cookie flag is already set automatically once requests arrive over TLS. | nginx serves the panel on 443 with a locally generated certificate; 8080 redirects. |
-| 3 | **SSH is open on `eth0`** | `killswitch.sh` accepts tcp/22 on the WAN-side Ethernet. Fine behind a home router, wrong on an untrusted LAN. | SSH is accepted on the hotspot only by default, with a documented switch for the wired side. |
-| 4 | **CSP still allows `'unsafe-inline'`** | `index.html` uses inline `onclick` handlers, so the policy cannot forbid inline script. The log view and WAN list no longer use `innerHTML`, but there is no automated XSS check. | Handlers move to `app.js`, the CSP drops `'unsafe-inline'`, a headless-browser lab check injects markup into a log line. |
-| 5 | **Xray is installed with `curl … \| bash` from a branch** | Whatever is on that branch at install time runs as root. v2rayA is already pinned by version and SHA-256; Xray is not. | The Xray release is pinned and its checksum verified before it runs. |
-| 6 | **API rate limit is per session** | `check_rate_limit()` counts in `$_SESSION`, the same weakness the login lockout had. Low impact: it only applies after login. | Counters move to the server-side store used for the login lockout. |
-| 7 | **Pinned VPN addresses are refreshed only when `killswitch.sh` runs** | If the provider moves the server while the VPN is down, the VPN cannot reconnect until the script is run again (see docs/08). | A timer re-resolves the `remote` hostnames while the VPN is up and updates the rules. |
-| 8 | **First-setup DNS lookup needs a real resolver in `/etc/resolv.conf`** | With the systemd-resolved stub (`127.0.0.53`) the one-time lookup in `killswitch.sh` cannot work, because the query is sent by another process. | The script detects the stub and uses resolved's upstream servers, or says clearly what to do. |
+| 2 | **SSH is open on `eth0`** | `killswitch.sh` accepts tcp/22 on the WAN-side Ethernet. Fine behind a home router, wrong on an untrusted LAN. | SSH is accepted on the hotspot only by default, with a documented switch for the wired side. |
+| 3 | **CSP still allows `'unsafe-inline'`** | `index.html` uses inline `onclick` handlers, so the policy cannot forbid inline script. The log view and WAN list no longer use `innerHTML`, but there is no automated XSS check. | Handlers move to `app.js`, the CSP drops `'unsafe-inline'`, a headless-browser lab check injects markup into a log line. |
+| 4 | **Xray is installed with `curl … \| bash` from a branch** | Whatever is on that branch at install time runs as root. v2rayA is already pinned by version and SHA-256; Xray is not. | The Xray release is pinned and its checksum verified before it runs. |
+| 5 | **API rate limit is per session** | `check_rate_limit()` counts in `$_SESSION`, the same weakness the login lockout had. Low impact: it only applies after login. | Counters move to the server-side store used for the login lockout. |
+| 6 | **Pinned VPN addresses are refreshed only when `killswitch.sh` runs** | If the provider moves the server while the VPN is down, the VPN cannot reconnect until the script is run again (see docs/08). | A timer re-resolves the `remote` hostnames while the VPN is up and updates the rules. |
+| 7 | **First-setup DNS lookup needs a real resolver in `/etc/resolv.conf`** | With the systemd-resolved stub (`127.0.0.53`) the one-time lookup in `killswitch.sh` cannot work, because the query is sent by another process. | The script detects the stub and uses resolved's upstream servers, or says clearly what to do. |
 
 ## Firewall
 
@@ -48,7 +47,7 @@ means. Items marked **FAIL in the lab** have a check that fails today on purpose
   tested, or removed from the docs.
 - **`openvpn-systemd-resolved` is installed but not used.** The up/down scripts in docs/03
   write `/etc/resolv.conf` directly. The package pulls in systemd-resolved, which caused the
-  dnsmasq port conflict (lab D1) and complicates the first-setup lookup (item 8 above).
+  dnsmasq port conflict (lab D1) and complicates the first-setup lookup (item 7 above).
   Either use it properly or stop installing it.
 - **docs/11 still suggests `rc.local`** for the kill switch. The installer now enables
   `shadowpi-killswitch.service`; the doc should say that instead.
@@ -57,10 +56,8 @@ means. Items marked **FAIL in the lab** have a check that fails today on purpose
 
 ## Tooling
 
-- **CI.** Run `lab/lab-test.sh` on GitHub Actions (arm64 runner; the router container needs
-  `privileged` and systemd), upload `lab/out/` as an artifact, and fail the job on any FAIL
-  that is not on a short list of known ones (today: none). T3 needs the real Tor network, so the job must tell "Tor unreachable" from a real failure.
-- **Exit code.** `lab-test.sh` always exits 0; it should exit non-zero on an unexpected FAIL.
-- **Static checks in CI:** `shellcheck` for `scripts/` and `lab/`, `php -l` for `web-ui/`.
+- **CI is in place** (`.github/workflows/ci.yml`): the lab and the static checks run on every push
+  and pull request, and `lab-test.sh` exits non-zero on any FAIL. Still to do: ShellCheck runs
+  at error level only; clean up the warnings and raise it.
 - **Docs language.** The step-by-step guides 00–11 exist in Russian only; README, LAB and
   ROADMAP are in three languages.
