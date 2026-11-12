@@ -105,11 +105,21 @@ check D2 "Router does not log clients' DNS queries" $([ "${logged:-0}" = 0 ]; ec
 R "systemctl stop tor"; ra=$(panel restart_all); sleep 3
 rs=$(R "/opt/shadowpi/scripts/restart-all.sh 2>&1 | grep -m1 'No such file'")
 check B3 "'Restart all' restarts services" $([ -z "$rs" ]; echo $?) "$rs"
-panel tor_start >/dev/null; sleep 5
-got=$(site_from_client 8000); nat=$(R "iptables -t nat -S | grep -c -E '9040|5353'")
-check T1 "Tor 'Paranoid' mode sends client traffic into Tor" $([ "${nat:-0}" -gt 0 ]; echo $?) "tor: $(R 'systemctl is-active tor'), NAT rules to Tor ports: $nat, website still saw: $got"
-t2=$(R "/opt/shadowpi/scripts/toggle-tor.sh status 2>&1 | grep -c -i 'experimental'; curl -s -u admin:labpanel123 http://10.0.0.1:8080/index.html | grep -c 'Экспериментально'")
-check T2 "While T1 fails, Tor mode is labelled experimental (toggle-tor.sh output and panel)" $(echo $t2 | grep -q -E '^[1-9][0-9]* [1-9]'; echo $?) "lines saying so in toggle-tor.sh status / panel page: $(echo $t2)"
+# Paranoid mode. Tor needs the real Tor network: the lab VPN server gives the router real
+# internet access, so Tor bootstraps through the VPN tunnel like on a real router.
+ton=$(panel tor_start)
+for i in $(seq 45); do R "grep -q 'Bootstrapped 100%' /var/log/tor/notices.log 2>/dev/null" && break; sleep 2; done
+hits() { R "iptables -t nat -L SHADOWPI_TOR -v -n -x 2>/dev/null | awk '/redir ports 9040/ {print \$1}'"; }
+before=$(hits); got=$(site_from_client 8000); after=$(hits)
+check T1 "Tor 'Paranoid' mode sends client traffic into Tor" $([ "${after:-0}" -gt "${before:-0}" ] && [ "$got" != "$VPN_EXIT" ] && [ "$got" != "$ROUTER_WAN" ] && [ "$got" != 10.0.0.50 ]; echo $?) "panel said $(echo "$ton" | grep -o '"success":[a-z]*'); client connections counted by the Tor redirect rule: ${before:-none} → ${after:-none}; the lab website (not reachable from the Tor network) saw: $got"
+tor=$(C "curl -s -m 60 https://check.torproject.org/api/ip || echo none")
+check T3 "In Paranoid mode a real website sees a Tor exit (needs the real Tor network)" $(echo "$tor" | grep -q '"IsTor":true'; echo $?) "check.torproject.org answered: $tor; $(R "grep -o 'Bootstrapped [0-9]*%' /var/log/tor/notices.log 2>/dev/null | tail -1")"
+png=$(C "ping -c 1 -W 3 $SITE >/dev/null 2>&1 && echo answered || echo 'no answer'"); fwd=$(R "iptables -L FORWARD -v -n -x | awk 'NR==3 {print \$1, \$3}'")
+check T4 "In Paranoid mode client traffic Tor cannot carry (ICMP, UDP) is dropped, not sent through the VPN" $([ "$png" = 'no answer' ] && echo "$fwd" | grep -q -E '^[1-9][0-9]* DROP'; echo $?) "client ping to the website: $png; first FORWARD rule (packets, action): $fwd"
+R "/opt/shadowpi/scripts/killswitch.sh >/dev/null 2>&1"; kept=$(R "iptables -t nat -S | grep -c SHADOWPI_TOR"); got=$(site_from_client 8000)
+check T5 "Re-running the kill switch keeps Paranoid mode on (no silent fall back to the plain VPN)" $([ "${kept:-0}" -gt 0 ] && [ "$got" != "$VPN_EXIT" ]; echo $?) "Tor rules after killswitch.sh: $kept; lab website saw: $got"
+toff=$(panel tor_stop); sleep 2; got=$(site_from_client 8000); left=$(R "iptables -t nat -S | grep -c SHADOWPI_TOR")
+check T2 "Turning Paranoid mode off puts clients back on the VPN" $([ "$got" = "$VPN_EXIT" ] && [ "$left" = 0 ]; echo $?) "panel said $(echo "$toff" | grep -o '"success":[a-z]*'); website saw: $got; Tor rules left: $left"
 echo "== V2Ray transparent proxy (lab Xray stand-in on :12345)"
 R "lab-xray-standin.sh" > out/xray.log 2>&1
 v2=$(R "/opt/shadowpi/scripts/setup-v2ray-redirect.sh 2>&1; echo rc=\$?")

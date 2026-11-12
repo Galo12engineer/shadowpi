@@ -129,7 +129,7 @@ ShadowPi поддерживает несколько способов подкл
 
 ### 🟣 Режим "Paranoid" (+ Tor)
 
-> ⚠️ **Experimental: does not route traffic yet.** Turning "Paranoid" mode on starts the Tor service on the router, but no firewall rule sends client traffic into Tor, so traffic keeps flowing exactly as in Fast mode (lab check T1 in `docs/LAB.md`). This section describes the design target, not what the router does today. See `docs/ROADMAP.md`.
+> ⚠️ **What Paranoid mode really does.** Client TCP and DNS go through Tor, and Tor itself goes out through the VPN tunnel (lab checks T1, T3 and T4 in `docs/LAB.md`). Other client traffic (UDP, ICMP) is dropped. The V2Ray hop **after** Tor described in this section is **not implemented**: the Tor exit node sees the traffic like any other Tor exit does. See `docs/ROADMAP.md`.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -190,7 +190,7 @@ ShadowPi поддерживает несколько способов подкл
 
 ### 🟣 Режим "Paranoid" (OpenVPN → Tor → V2Ray)
 
-> ⚠️ **Experimental: does not route traffic yet.** Turning "Paranoid" mode on starts the Tor service on the router, but no firewall rule sends client traffic into Tor, so traffic keeps flowing exactly as in Fast mode (lab check T1 in `docs/LAB.md`). This section describes the design target, not what the router does today. See `docs/ROADMAP.md`.
+> ⚠️ **What Paranoid mode really does.** Client TCP and DNS go through Tor, and Tor itself goes out through the VPN tunnel (lab checks T1, T3 and T4 in `docs/LAB.md`). Other client traffic (UDP, ICMP) is dropped. The V2Ray hop **after** Tor described in this section is **not implemented**: the Tor exit node sees the traffic like any other Tor exit does. See `docs/ROADMAP.md`.
 
 ```
 [Ты] → [OpenVPN] → [Tor Network] → [V2Ray Proxy] → [Интернет]
@@ -220,7 +220,7 @@ ShadowPi поддерживает несколько способов подкл
 | Режим | Цепочка | Скорость | Анонимность | Tor exit видит? |
 |--------|---------|----------|-------------|------------------|
 | 🟢 Fast | VPN → Proxy | ⚡⚡⚡⚡ | ⭐⭐⭐ | — нет Tor |
-| 🟣 Paranoid (experimental, not routed yet) | VPN → Tor → Proxy | ⚡⚡ | ⭐⭐⭐⭐⭐ | ❌ Только шифр. V2Ray |
+| 🟣 Paranoid (no V2Ray hop after Tor yet) | VPN → Tor → Proxy | ⚡⚡ | ⭐⭐⭐⭐⭐ | ❌ Только шифр. V2Ray |
 
 > 🔑 **Ключевое преимущество**: V2Ray/Proxy в конце цепочки шифрует трафик от потенциально злонамеренных Tor exit нод!
 
@@ -250,7 +250,7 @@ ShadowPi поддерживает несколько способов подкл
 
 ### 3. Tor (Опциональный)
 
-> ⚠️ **Experimental: does not route traffic yet.** Turning "Paranoid" mode on starts the Tor service on the router, but no firewall rule sends client traffic into Tor, so traffic keeps flowing exactly as in Fast mode (lab check T1 in `docs/LAB.md`). This section describes the design target, not what the router does today. See `docs/ROADMAP.md`.
+> ⚠️ **What Paranoid mode really does.** Client TCP and DNS go through Tor, and Tor itself goes out through the VPN tunnel (lab checks T1, T3 and T4 in `docs/LAB.md`). Other client traffic (UDP, ICMP) is dropped. The V2Ray hop **after** Tor described in this section is **not implemented**: the Tor exit node sees the traffic like any other Tor exit does. See `docs/ROADMAP.md`.
 - **Роль**: Максимальная анонимность через луковичную маршрутизацию
 - **SOCKS порт**: 9050
 - **DNS порт**: 5353
@@ -327,7 +327,7 @@ ShadowPi поддерживает несколько способов подкл
 
 ### ✅ Что защищено (режим Paranoid: VPN → Tor → V2Ray)
 
-> ⚠️ **Experimental: does not route traffic yet.** Turning "Paranoid" mode on starts the Tor service on the router, but no firewall rule sends client traffic into Tor, so traffic keeps flowing exactly as in Fast mode (lab check T1 in `docs/LAB.md`). This section describes the design target, not what the router does today. See `docs/ROADMAP.md`.
+> ⚠️ **What Paranoid mode really does.** Client TCP and DNS go through Tor, and Tor itself goes out through the VPN tunnel (lab checks T1, T3 and T4 in `docs/LAB.md`). Other client traffic (UDP, ICMP) is dropped. The V2Ray hop **after** Tor described in this section is **not implemented**: the Tor exit node sees the traffic like any other Tor exit does. See `docs/ROADMAP.md`.
 
 | Угроза | Защита | Как работает |
 |--------|--------|--------------|
@@ -342,7 +342,7 @@ ShadowPi поддерживает несколько способов подкл
 
 ### 🛡️ Уровень защиты по режимам
 
-> ⚠️ **Experimental: does not route traffic yet.** Turning "Paranoid" mode on starts the Tor service on the router, but no firewall rule sends client traffic into Tor, so traffic keeps flowing exactly as in Fast mode (lab check T1 in `docs/LAB.md`). This section describes the design target, not what the router does today. See `docs/ROADMAP.md`.
+> ⚠️ **What Paranoid mode really does.** Client TCP and DNS go through Tor, and Tor itself goes out through the VPN tunnel (lab checks T1, T3 and T4 in `docs/LAB.md`). Other client traffic (UDP, ICMP) is dropped. The V2Ray hop **after** Tor described in this section is **not implemented**: the Tor exit node sees the traffic like any other Tor exit does. See `docs/ROADMAP.md`.
 
 | Угроза | 🟢 Fast | 🟣 Paranoid |
 |--------|---------|-------------|
@@ -371,7 +371,7 @@ ShadowPi поддерживает несколько способов подкл
 
 ### 🏛️ Против государственных атак
 
-> ⚠️ **Experimental: does not route traffic yet.** Turning "Paranoid" mode on starts the Tor service on the router, but no firewall rule sends client traffic into Tor, so traffic keeps flowing exactly as in Fast mode (lab check T1 in `docs/LAB.md`). This section describes the design target, not what the router does today. See `docs/ROADMAP.md`.
+> ⚠️ **What Paranoid mode really does.** Client TCP and DNS go through Tor, and Tor itself goes out through the VPN tunnel (lab checks T1, T3 and T4 in `docs/LAB.md`). Other client traffic (UDP, ICMP) is dropped. The V2Ray hop **after** Tor described in this section is **not implemented**: the Tor exit node sees the traffic like any other Tor exit does. See `docs/ROADMAP.md`.
 
 **В режиме Paranoid (VPN → Tor → V2Ray):**
 

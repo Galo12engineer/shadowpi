@@ -149,7 +149,7 @@
                     <div class="node-status"></div>
                     <div class="node-icon">🧅</div>
                     <span class="node-label">Tor</span>
-                    <span class="node-detail" id="torChainStatus">Эксперимент</span>
+                    <span class="node-detail" id="torChainStatus">Опционально</span>
                 </div>
 
                 <div class="chain-arrow" id="arrowInternet">
@@ -272,7 +272,7 @@
                             <h3>Tor Network</h3>
                             <span class="service-badge secondary" id="torBadge">Отключен</span>
                         </div>
-                        <span class="optional-badge">Экспериментально</span>
+                        <span class="optional-badge">Опционально</span>
                     </div>
                     <div class="service-details">
                         <div class="detail-row">
@@ -281,9 +281,9 @@
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Режим</span>
-                            <span class="detail-value">Не в цепочке</span>
+                            <span class="detail-value">TCP и DNS клиентов</span>
                         </div>
-                        <p class="service-note" id="torNote">⚠️ Экспериментально: сервис Tor запускается, но трафик клиентов через него пока НЕ идёт</p>
+                        <p class="service-note" id="torNote">🧅 Режим Paranoid: клиенты идут через Tor (Tor выходит через VPN). UDP блокируется, скорость ниже</p>
                     </div>
                     <div class="service-actions">
                         <button class="btn btn-primary" onclick="toggleTor()" id="torToggleBtn">

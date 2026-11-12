@@ -8,7 +8,7 @@
 
 ```bash
 cd lab
-make lab-test     # собирает всё с нуля, дважды ставит систему, выполняет 39 проверок (~10 мин)
+make lab-test     # собирает всё с нуля, дважды ставит систему, выполняет 42 проверки (~10 мин)
 make lab-down     # удаляет лабораторию
 ```
 
@@ -42,7 +42,7 @@ make lab-down     # удаляет лабораторию
 | Панель nginx + PHP, sudoers | **Настоящие** | Те же пути и права, что на Pi |
 | `killswitch.sh`, `setup-v2ray-redirect.sh`, `start/stop/restart-all.sh` | **Настоящие** | |
 | Клиент OpenVPN | **Настоящий**, настроен слово в слово по docs/03 | Вместо Windscribe — лабораторный сервер OpenVPN |
-| Tor, Xray, dnsmasq | **Настоящие** пакеты | |
+| Tor, Xray, dnsmasq | **Настоящие** пакеты | Tor подключается к настоящей сети Tor через лабораторный VPN (T3) |
 | v2rayA | **Настоящий**, ставится из закреплённого релиза (проверка I4) | Остальные проверки идут на второй установке, где v2rayA намеренно отклонён (I2), и показывают, что роутер работает без него |
 | Прозрачный прокси V2Ray | **Настоящее ядро Xray** (ставит установщик) с inbound `dokodemo-door` из docs/04 на :12345 | Outbound — `freedom` вместо VLESS-сервера; журнал доступа Xray показывает, какие соединения прошли через прокси |
 | Wi-Fi хотспот (hostapd) | **Эмулируется** | Его заменяет Docker-сеть с именем `wlan0`, поэтому hostapd не запускается |
@@ -72,6 +72,11 @@ make lab-down     # удаляет лабораторию
 7. **Dummy-интерфейсы 4G** (`lab/router/lab-4g.sh`) и **DNS-сервер с одним именем** на
    контейнере сайта — для проверок kill switch K3a, K3b и K6.
 
+8. **Исправление контрольных сумм TCP на лабораторном VPN-сервере.** Docker Desktop отдаёт
+   пакеты из настоящего интернета с незаполненными контрольными суммами TCP. После пересылки в
+   VPN-туннель роутер их отбрасывал. Сервер пересчитывает их (`tc … action csum`), поэтому
+   роутер может достучаться до настоящей сети Tor.
+
 Строки клиента OpenVPN читаются прямо из `docs/03_OPENVPN_SETUP.md`, поэтому изменение
 документа тестируется автоматически.
 
@@ -100,8 +105,11 @@ make lab-down     # удаляет лабораторию
 | I1 | FAIL | PASS | v2rayA необязателен и больше не берётся из `apt.v2raya.org` (его цепочке сертификатов Debian не доверяет; проверки TLS не отключаются). Закреплённый релиз ставится, только если совпал SHA-256. |
 | I4 | новая | PASS | v2rayA действительно ставится из закреплённого релиза и работает. |
 | I5 | новая | PASS | Установщик не печатает пароли Wi-Fi и панели и не передаёт пароль панели аргументом процесса; файлы с паролями недоступны остальным пользователям. |
-| T1 | FAIL | **FAIL** | Намеренно не исправлено: режим Tor «Paranoid» по-прежнему не маршрутизирует трафик. Теперь он помечен как экспериментальный в README, ARCHITECTURE, `toggle-tor.sh` и панели (T2). План работ. |
-| T2 | новая | PASS | Пометки на месте. |
+| T1 | FAIL | PASS | Режим Paranoid теперь маршрутизирует: TCP клиентов идёт на TransPort Tor, их DNS — на DNSPort (`setup-tor-redirect.sh`), а сам Tor выходит через VPN. Сначала режим только пометили экспериментальным, затем реализовали. Если Tor не работает, у клиентов нет интернета; на обычный VPN они не откатываются. |
+| T3 | новая | PASS | Настоящий сайт (check.torproject.org) видит выходной узел Tor. Лабораторный роутер достаёт до настоящей сети Tor через лабораторный VPN-сервер. |
+| T4 | новая | PASS | Трафик клиентов, который Tor не умеет переносить (ICMP, UDP), отбрасывается, а не уходит через VPN. |
+| T5 | новая | PASS | Повторный запуск `killswitch.sh` (он сбрасывает все правила) возвращает редирект в Tor, поэтому клиенты не откатываются молча на обычный VPN. |
+| T2 | новая | PASS | Выключение режима убирает правила и возвращает клиентов на VPN. (Пока маршрутизации через Tor не было, T2 проверяла пометки «экспериментальный».) |
 
 Также исправлено без проверки в лаборатории: просмотр логов и список WAN в панели больше не
 используют `innerHTML` (хранимая XSS через содержимое логов), а из `api.php` удалена мёртвая
@@ -142,8 +150,11 @@ make lab-down     # удаляет лабораторию
 | D1 | PASS | Client DNS works through the router |
 | D2 | PASS | Router does not log clients' DNS queries |
 | B3 | PASS | 'Restart all' restarts services |
-| T1 | **FAIL** | Tor 'Paranoid' mode sends client traffic into Tor |
-| T2 | PASS | While T1 fails, Tor mode is labelled experimental (toggle-tor.sh output and panel) |
+| T1 | PASS | Tor 'Paranoid' mode sends client traffic into Tor |
+| T3 | PASS | In Paranoid mode a real website sees a Tor exit (needs the real Tor network) |
+| T4 | PASS | In Paranoid mode client traffic Tor cannot carry (ICMP, UDP) is dropped, not sent through the VPN |
+| T5 | PASS | Re-running the kill switch keeps Paranoid mode on (no silent fall back to the plain VPN) |
+| T2 | PASS | Turning Paranoid mode off puts clients back on the VPN |
 | X1 | PASS | V2Ray redirect script applies cleanly when the proxy listens |
 | X4 | PASS | Running the script twice leaves one rule set |
 | X2.80 | PASS | Client → site:80 goes through V2Ray, then the VPN |
@@ -159,15 +170,15 @@ make lab-down     # удаляет лабораторию
 | K6 | PASS | VPN reconnects under the kill switch when 'remote' is a hostname |
 | K5 | PASS | After a reboot the kill switch is on before anything else starts |
 
-PASS 38 · FAIL 1 · 2026-11-11 10:41 UTC
+PASS 42 · FAIL 0 · 2026-11-12 20:22 UTC
 
-Единственный оставшийся FAIL (T1) известен и оставлен намеренно: лаборатория описывает правильное
-поведение, а проект его пока не обеспечивает. Он есть в [ROADMAP.ru.md](ROADMAP.ru.md).
+Ни одна проверка не падает. То, что лаборатория покрыть не может (железо, хоп V2Ray после Tor),
+описано в [ROADMAP.ru.md](ROADMAP.ru.md).
 
 Ход работ: первый прогон 8 PASS / 16 FAIL → исправление V1: 9 / 15 → исправление путей и
 новая проверка X3: 12 / 13 (25 проверок) → исправление V2Ray, плюс X4 и X5: 19 / 10
 (29 проверок) → hotfix-раунд, плюс 12 новых проверок и K3, разделённая на две:
-37 / 2 (39 проверок) → убран nginx basic auth (P7): **38 PASS / 1 FAIL (39 проверок)**.
+37 / 2 (39 проверок) → убран nginx basic auth (P7): 38 / 1 (39 проверок) → реализована маршрутизация через Tor, плюс T3, T4 и T5: **42 PASS / 0 FAIL (42 проверки)**.
 
 ## История: находки первого прогона (10.11.2026)
 

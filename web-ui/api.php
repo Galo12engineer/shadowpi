@@ -112,11 +112,11 @@ switch ($action) {
         break;
 
     case 'tor_start':
-        echo json_encode(controlService('tor', 'start'));
+        echo json_encode(toggleTor('on'));
         break;
 
     case 'tor_stop':
-        echo json_encode(controlService('tor', 'stop'));
+        echo json_encode(toggleTor('off'));
         break;
 
     case 'wifi_start':
@@ -207,8 +207,15 @@ function getV2RayStatus()
 
 function getTorStatus()
 {
+    // "active" means Paranoid mode: the Tor redirect is in place (the state file is written
+    // by setup-tor-redirect.sh), not merely that a Tor process exists.
+    $routing = file_exists('/opt/shadowpi/status/tor-mode');
+    $service = isServiceActive('tor@default');
+
     return [
-        'active' => isServiceActive('tor')
+        'active' => $routing,
+        'routing' => $routing,
+        'service' => $service
     ];
 }
 
@@ -358,6 +365,32 @@ function controlService($service, $action)
     return [
         'success' => $success,
         'message' => ucfirst($action) . ' ' . $service . ($success ? ' успешно' : ' ошибка')
+    ];
+}
+
+// Paranoid mode on/off. The script configures and starts Tor and applies (or removes) the
+// transparent redirect; success means the redirect state really changed.
+function toggleTor($mode)
+{
+    $mode = ($mode === 'on') ? 'on' : 'off';
+    $output = [];
+    $rc = 1;
+    exec('sudo /opt/shadowpi/scripts/toggle-tor.sh ' . $mode . ' 2>&1', $output, $rc);
+
+    $routing = file_exists('/opt/shadowpi/status/tor-mode');
+    $success = ($rc === 0) && ($mode === 'on' ? $routing : !$routing);
+    log_action('TOR_MODE', $mode . ' - ' . ($success ? 'success' : "failed (exit $rc)"));
+
+    if ($mode === 'on') {
+        $message = $success ? 'Режим Paranoid включён: клиенты идут через Tor' : 'Не удалось включить режим Paranoid';
+    } else {
+        $message = $success ? 'Режим Fast: Tor выключен' : 'Не удалось выключить режим Paranoid';
+    }
+
+    return [
+        'success' => $success,
+        'message' => $message,
+        'output' => preg_replace('/\x1b\[[0-9;]*m/', '', implode("\n", $output))
     ];
 }
 

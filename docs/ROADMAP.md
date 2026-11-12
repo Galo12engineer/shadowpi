@@ -10,7 +10,7 @@ means. Items marked **FAIL in the lab** have a check that fails today on purpose
 
 | # | Item | Why it matters | Done when |
 |---|---|---|---|
-| 1 | **Tor "Paranoid" mode does not route traffic** (lab T1, FAIL) | The mode only starts the Tor service. It is labelled experimental everywhere (lab T2), but the feature is missing. | `nat PREROUTING -i wlan0`: tcp → TransPort 9040, udp/53 → DNSPort 5353, other UDP dropped; INPUT opened for both ports on `wlan0`; works together with the `V2RAY` chain in the same hook; fails closed when Tor is not bootstrapped. Lab: client traffic reaches TransPort, and with a private Tor network (chutney) the website sees a Tor exit. |
+| 1 | **No V2Ray hop after Tor** | Paranoid mode now routes client TCP and DNS through Tor (lab T1, T3, T4). The original design was VPN → Tor → V2Ray, so that the Tor exit sees only encrypted proxy traffic. Today the exit sees the traffic like any Tor exit does, and the V2Ray redirect is bypassed while the mode is on. | In Paranoid mode Xray's outbound goes through Tor's SOCKS port, and a lab check shows that the exit node sees only the connection to the proxy. |
 | 2 | **HTTPS for the panel** | The panel runs on plain HTTP, so the password and the session cookie cross the hotspot unencrypted, readable by any other client that knows the Wi-Fi password. The `Secure` cookie flag is already set automatically once requests arrive over TLS. | nginx serves the panel on 443 with a locally generated certificate; 8080 redirects. |
 | 3 | **SSH is open on `eth0`** | `killswitch.sh` accepts tcp/22 on the WAN-side Ethernet. Fine behind a home router, wrong on an untrusted LAN. | SSH is accepted on the hotspot only by default, with a documented switch for the wired side. |
 | 4 | **CSP still allows `'unsafe-inline'`** | `index.html` uses inline `onclick` handlers, so the policy cannot forbid inline script. The log view and WAN list no longer use `innerHTML`, but there is no automated XSS check. | Handlers move to `app.js`, the CSP drops `'unsafe-inline'`, a headless-browser lab check injects markup into a log line. |
@@ -59,7 +59,7 @@ means. Items marked **FAIL in the lab** have a check that fails today on purpose
 
 - **CI.** Run `lab/lab-test.sh` on GitHub Actions (arm64 runner; the router container needs
   `privileged` and systemd), upload `lab/out/` as an artifact, and fail the job on any FAIL
-  that is not on a short list of known ones (today: T1).
+  that is not on a short list of known ones (today: none). T3 needs the real Tor network, so the job must tell "Tor unreachable" from a real failure.
 - **Exit code.** `lab-test.sh` always exits 0; it should exit non-zero on an unexpected FAIL.
 - **Static checks in CI:** `shellcheck` for `scripts/` and `lab/`, `php -l` for `web-ui/`.
 - **Docs language.** The step-by-step guides 00–11 exist in Russian only; README, LAB and
