@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Static checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Shell syntax
+        run: |
+          for f in scripts/*.sh lab/*.sh lab/router/*.sh lab/vpnserver/*.sh; do bash -n "$f"; done
+      - name: ShellCheck (errors)
+        run: shellcheck -S error scripts/*.sh lab/*.sh lab/router/*.sh lab/vpnserver/*.sh
+      - name: PHP syntax
+        run: |
+          for f in web-ui/*.php; do php -l "$f"; done
+      - name: JavaScript syntax
+        run: node --check web-ui/app.js
+
+  lab:
+    name: Lab (real installer and scripts on Debian arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run the lab
+        run: cd lab && ./lab-test.sh
+      - name: Upload results and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lab-out
+          path: lab/out/
+          if-no-files-found: warn

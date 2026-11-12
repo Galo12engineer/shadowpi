@@ -8,7 +8,7 @@
 
 ```bash
 cd lab
-make lab-test     # збирає все з нуля, двічі встановлює систему, виконує 42 перевірки (~10 хв)
+make lab-test     # збирає все з нуля, двічі встановлює систему, виконує 43 перевірки (~10 хв)
 make lab-down     # видаляє лабораторію
 ```
 
@@ -77,6 +77,10 @@ make lab-down     # видаляє лабораторію
    VPN-тунель роутер їх відкидав. Сервер перераховує їх (`tc … action csum`), тому роутер може
    дістатися справжньої мережі Tor.
 
+9. **Сертифікат панелі підтверджується один раз.** Він самопідписаний, тому лабораторія додає
+   його до сховища довірених сертифікатів роутера — так само адміністратор підтверджує його в
+   браузері. Після цього кожен запит до панелі перевіряє сертифікат по-справжньому.
+
 Рядки клієнта OpenVPN читаються прямо з `docs/03_OPENVPN_SETUP.md`, тому зміна документа
 тестується автоматично.
 
@@ -89,6 +93,7 @@ make lab-down     # видаляє лабораторію
 | D2 | FAIL | PASS | З конфігу dnsmasq прибрано `log-queries` / `log-dhcp` (інсталятор і docs/06). |
 | P4 | FAIL | PASS | Новий ID сесії під час входу. Одна функція `start_secure_session()` для всіх точок входу: strict mode, `HttpOnly`, `SameSite=Strict`, `Secure` лише через HTTPS. |
 | P5, P6 | нові | PASS | Прапорці cookie; тайм-аут бездіяльності (`SESSION_LIFETIME`) і загальний термін життя, бо відкрита панель опитує сервер кожні 5 секунд і ніколи не простоює. |
+| H1 | нова | PASS | Панель працює через HTTPS із самопідписаним сертифікатом, дійсним для `10.0.0.1` і `anonrouter.local`; порт 8080 лише перенаправляє. Cookie сесії тепер ще й `Secure` (P5). |
 | P2 | FAIL | PASS | Невдалі входи рахуються в `/var/lib/shadowpi/login-attempts.json` (flock) за адресою клієнта, з блокуванням, що подвоюється, і загальним лічильником. Перевірка йде до пароля; якщо файл недоступний, вхід закривається. |
 | P7 | нова | PASS | nginx basic auth перед панеллю використовував той самий пароль і не мав блокування, тому P2 можна було обійти через нього. Спочатку записано як FAIL, потім шар nginx прибрано: єдиний вхід — логін панелі із серверним блокуванням. |
 | B2 | FAIL | PASS | `start-all.sh`, `stop-all.sh`, `restart-all.sh` завершуються з ненульовим кодом, якщо обов'язковий крок не вдався; API повертає цей код. `startWiFi` перевіряє і dnsmasq. |
@@ -131,13 +136,14 @@ make lab-down     # видаляє лабораторію
 | I4 | PASS | v2rayA is installed from the pinned release (SHA-256 checked) and runs |
 | I2 | PASS | Installer refuses v2rayA with a wrong SHA-256 and still finishes |
 | I5 | PASS | Installer does not print the Wi-Fi or panel password, and keeps them in non-world-readable files |
+| H1 | PASS | Panel is served over HTTPS with a certificate valid for its address; plain HTTP only redirects |
 | I3 | PASS | Panel API answers right after install (before reboot) |
 | P1 | PASS | API refuses requests without login |
 | P2 | PASS | 6 wrong passwords (new cookie each) lock the login |
 | P7 | PASS | Panel password cannot be guessed without limit through nginx basic auth |
 | P3 | PASS | Write action without CSRF token is refused |
 | P4 | PASS | Session ID changes at login (no session fixation) |
-| P5 | PASS | Session cookie is HttpOnly and SameSite=Strict |
+| P5 | PASS | Session cookie is Secure, HttpOnly and SameSite=Strict |
 | P6 | PASS | Idle session expires (SESSION_LIFETIME) |
 | V1 | PASS | Client reaches the internet through the VPN (docs config) |
 | V2 | PASS | Panel shows the VPN IP |
@@ -170,7 +176,7 @@ make lab-down     # видаляє лабораторію
 | K6 | PASS | VPN reconnects under the kill switch when 'remote' is a hostname |
 | K5 | PASS | After a reboot the kill switch is on before anything else starts |
 
-PASS 42 · FAIL 0 · 2026-11-12 20:22 UTC
+PASS 43 · FAIL 0 · SKIP 0 · 2026-11-12 20:51 UTC
 
 Жодна перевірка не падає. Те, що лабораторія покрити не може (залізо, хоп V2Ray після Tor),
 описано в [ROADMAP.ua.md](ROADMAP.ua.md).
@@ -178,7 +184,7 @@ PASS 42 · FAIL 0 · 2026-11-12 20:22 UTC
 Перебіг робіт: перший прогін 8 PASS / 16 FAIL → виправлення V1: 9 / 15 → виправлення шляхів і
 нова перевірка X3: 12 / 13 (25 перевірок) → виправлення V2Ray, плюс X4 і X5: 19 / 10
 (29 перевірок) → hotfix-раунд, плюс 12 нових перевірок і K3, розділена на дві:
-37 / 2 (39 перевірок) → прибрано nginx basic auth (P7): 38 / 1 (39 перевірок) → реалізовано маршрутизацію через Tor, плюс T3, T4 і T5: **42 PASS / 0 FAIL (42 перевірки)**.
+37 / 2 (39 перевірок) → прибрано nginx basic auth (P7): 38 / 1 (39 перевірок) → реалізовано маршрутизацію через Tor, плюс T3, T4 і T5: 42 / 0 (42 перевірки) → HTTPS для панелі (H1): **43 PASS / 0 FAIL (43 перевірки)**.
 
 ## Історія: знахідки першого прогону (10.11.2026)
 

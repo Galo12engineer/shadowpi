@@ -9,18 +9,19 @@ printf '| ID | Result | Check | Evidence |\n|---|---|---|---|\n' > "$RES"
 SITE=198.51.100.7 VPN_EXIT=172.30.0.20 ROUTER_WAN=172.30.0.10
 R() { docker compose exec -T router bash -c "$1"; }
 C() { docker compose exec -T client sh -c "$1"; }
-pass=0 fail=0
-check() { # $1 id, $2 description, $3 0=ok, $4 evidence
-  local s=PASS; [ "$3" = 0 ] && pass=$((pass+1)) || { s=FAIL; fail=$((fail+1)); }
+pass=0 fail=0 skip=0
+check() { # $1 id, $2 description, $3 result: 0 = PASS, 2 = SKIP (cannot be tested here), else FAIL, $4 evidence
+  local s=PASS
+  case "$3" in 0) pass=$((pass+1)) ;; 2) s=SKIP; skip=$((skip+1)) ;; *) s=FAIL; fail=$((fail+1)) ;; esac
   printf '%-4s %-5s %s — %s\n' "$1" "$s" "$2" "$4"
   printf '| %s | %s | %s | %s |\n' "$1" "$s" "$2" "$(echo "$4" | tr '|\n' '/ ')" >> "$RES"
 }
 site_from_client() { C "curl -s -m 6 http://$SITE:$1/ || echo none"; }
 panel() { # $1 action, $2 extra POST data; logs in once, uses CSRF for writes
   R "J=/tmp/jar; B=\"-s -m 90 -u admin:labpanel123 -c \$J -b \$J\"
-     [ -s \$J ] || curl \$B -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null
-     T=\$(curl \$B 'http://10.0.0.1:8080/api.php?action=get_csrf' | sed 's/.*\"token\":\"\([^\"]*\)\".*/\1/')
-     curl \$B -X POST -d \"action=$1&csrf_token=\$T${2:-}\" http://10.0.0.1:8080/api.php"; }
+     [ -s \$J ] || curl \$B -X POST -d 'action=login&username=admin&password=labpanel123' https://10.0.0.1/auth.php >/dev/null
+     T=\$(curl \$B 'https://10.0.0.1/api.php?action=get_csrf' | sed 's/.*\"token\":\"\([^\"]*\)\".*/\1/')
+     curl \$B -X POST -d \"action=$1&csrf_token=\$T${2:-}\" https://10.0.0.1/api.php"; }
 
 echo "== Building lab from scratch"
 docker compose down -v >/dev/null 2>&1
@@ -43,16 +44,22 @@ check I2 "Installer refuses v2rayA with a wrong SHA-256 and still finishes" $([ 
 shown=$(cat out/install-as-is.log out/install.log | grep -c -E 'labwifi123|labpanel123')
 modes=$(R "stat -c '%a %U:%G %n' /etc/hostapd/hostapd.conf /var/www/shadowpi/config.php | tr '\n' ' '")
 check I5 "Installer does not print the Wi-Fi or panel password, and keeps them in non-world-readable files" $([ "$shown" = 0 ] && ! echo "$modes" | grep -q -E '(^| )[0-7][0-7][1-7] '; echo $?) "lines of installer output containing a password: $shown; files: $modes"
-code=$(R "curl -s -o /dev/null -w '%{http_code}' -u admin:labpanel123 'http://10.0.0.1:8080/api.php?action=vpn_status'")
+# The panel certificate is self-signed. The lab accepts it once (as the admin does in a
+# browser) by adding it to the router's trust store; from here on curl verifies it for real,
+# so a certificate that does not match https://10.0.0.1 would fail every panel check.
+R "cp /etc/ssl/shadowpi/panel.crt /usr/local/share/ca-certificates/shadowpi-panel.crt && update-ca-certificates >/dev/null 2>&1"
+h1=$(R "echo \"http: \$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' http://10.0.0.1:8080/login.html) https: \$(curl -s -o /dev/null -w '%{http_code} verify=%{ssl_verify_result}' https://10.0.0.1/login.html)\"")
+check H1 "Panel is served over HTTPS with a certificate valid for its address; plain HTTP only redirects" $(echo "$h1" | grep -q 'http: 301 https://10.0.0.1/login.html https: 200 verify=0'; echo $?) "$h1"
+code=$(R "curl -s -o /dev/null -w '%{http_code}' -u admin:labpanel123 'https://10.0.0.1/api.php?action=vpn_status'")
 check I3 "Panel API answers right after install (before reboot)" $([ "$code" = 401 ] || [ "$code" = 200 ]; echo $?) "HTTP $code (php-fpm: $(R 'systemctl is-active php8.2-fpm'))"
 R "LAB_ISP=1 lab-netprep.sh" >/dev/null
 
 echo "== Panel security"
-out=$(R "curl -s -u admin:labpanel123 'http://10.0.0.1:8080/api.php?action=vpn_status'")
+out=$(R "curl -s -u admin:labpanel123 'https://10.0.0.1/api.php?action=vpn_status'")
 check P1 "API refuses requests without login" $(echo "$out" | grep -q 'Authentication required'; echo $?) "$out"
-out=$(R "curl -s -u admin:labpanel123 -X POST -d 'action=vpn_status' http://10.0.0.1:8080/api.php")
-lock=$(R "for i in 1 2 3 4 5 6; do curl -s -u admin:labpanel123 -X POST -d 'action=login&username=admin&password=wrong\$i' http://10.0.0.1:8080/auth.php >/dev/null; done
-          curl -s -u admin:labpanel123 -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php")
+out=$(R "curl -s -u admin:labpanel123 -X POST -d 'action=vpn_status' https://10.0.0.1/api.php")
+lock=$(R "for i in 1 2 3 4 5 6; do curl -s -u admin:labpanel123 -X POST -d 'action=login&username=admin&password=wrong\$i' https://10.0.0.1/auth.php >/dev/null; done
+          curl -s -u admin:labpanel123 -X POST -d 'action=login&username=admin&password=labpanel123' https://10.0.0.1/auth.php")
 check P2 "6 wrong passwords (new cookie each) lock the login" $(echo "$lock" | grep -q '"success":true'; [ $? != 0 ]; echo $?) "after 6 failures the correct password gives: $(echo "$lock" | grep -o '"success":[a-z]*')"
 # The lockout is now per client address and every lab request comes from the same address,
 # so the next logins would be refused for LOCKOUT_TIME. Removing the counter file = waiting 5 minutes.
@@ -60,23 +67,23 @@ R "rm -f /var/lib/shadowpi/login-attempts.json"
 # The panel used to sit behind nginx basic auth with the SAME password and no lockout; that
 # layer was removed. The check stays so it cannot come back: if nginx tells a right
 # password from a wrong one after many failures, the lockout above can be bypassed through it.
-ba=$(R "for i in \$(seq 30); do curl -s -o /dev/null -u admin:wrong\$i http://10.0.0.1:8080/; done
-        echo \"wrong=\$(curl -s -o /dev/null -w '%{http_code}' -u admin:wrong31 http://10.0.0.1:8080/) right=\$(curl -s -o /dev/null -w '%{http_code}' -u admin:labpanel123 http://10.0.0.1:8080/)\"")
+ba=$(R "for i in \$(seq 30); do curl -s -o /dev/null -u admin:wrong\$i https://10.0.0.1/; done
+        echo \"wrong=\$(curl -s -o /dev/null -w '%{http_code}' -u admin:wrong31 https://10.0.0.1/) right=\$(curl -s -o /dev/null -w '%{http_code}' -u admin:labpanel123 https://10.0.0.1/)\"")
 check P7 "Panel password cannot be guessed without limit through nginx basic auth" $([ "${ba#wrong=}" != "$ba" ] && [ "$(echo "$ba" | sed 's/wrong=\([0-9]*\).*/\1/')" = "$(echo "$ba" | sed 's/.*right=//')" ]; echo $?) "after 30 failures nginx answers: $ba (different codes = it still confirms the right password)"
-out=$(R "J=/tmp/j2; curl -s -u admin:labpanel123 -c \$J -b \$J -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null; curl -s -u admin:labpanel123 -b \$J -X POST -d 'action=tor_start' http://10.0.0.1:8080/api.php")
+out=$(R "J=/tmp/j2; curl -s -u admin:labpanel123 -c \$J -b \$J -X POST -d 'action=login&username=admin&password=labpanel123' https://10.0.0.1/auth.php >/dev/null; curl -s -u admin:labpanel123 -b \$J -X POST -d 'action=tor_start' https://10.0.0.1/api.php")
 check P3 "Write action without CSRF token is refused" $(echo "$out" | grep -q 'Invalid CSRF'; echo $?) "$out"
-sess=$(R "J=/tmp/j3; curl -s -u admin:labpanel123 -c \$J 'http://10.0.0.1:8080/auth.php?action=check' >/dev/null; a=\$(awk '/shadowpi_session/{print \$7}' \$J); curl -s -u admin:labpanel123 -b \$J -c \$J -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null; b=\$(awk '/shadowpi_session/{print \$7}' \$J); [ \"\$a\" != \"\$b\" ] && echo changed || echo same")
+sess=$(R "J=/tmp/j3; curl -s -u admin:labpanel123 -c \$J 'https://10.0.0.1/auth.php?action=check' >/dev/null; a=\$(awk '/shadowpi_session/{print \$7}' \$J); curl -s -u admin:labpanel123 -b \$J -c \$J -X POST -d 'action=login&username=admin&password=labpanel123' https://10.0.0.1/auth.php >/dev/null; b=\$(awk '/shadowpi_session/{print \$7}' \$J); [ \"\$a\" != \"\$b\" ] && echo changed || echo same")
 check P4 "Session ID changes at login (no session fixation)" $([ "$sess" = changed ]; echo $?) "session id $sess"
-hdr=$(R "curl -s -D - -o /dev/null -u admin:labpanel123 'http://10.0.0.1:8080/auth.php?action=check' | grep -i '^set-cookie' | tr -d '\r'")
-check P5 "Session cookie is HttpOnly and SameSite=Strict" $(echo "$hdr" | grep -qi 'httponly' && echo "$hdr" | grep -qi 'samesite=strict'; echo $?) "${hdr:-no Set-Cookie header}"
+hdr=$(R "curl -s -D - -o /dev/null -u admin:labpanel123 'https://10.0.0.1/auth.php?action=check' | grep -i '^set-cookie' | tr -d '\r'")
+check P5 "Session cookie is Secure, HttpOnly and SameSite=Strict" $(echo "$hdr" | grep -qi 'httponly' && echo "$hdr" | grep -qi 'samesite=strict' && echo "$hdr" | grep -qi '; secure'; echo $?) "${hdr:-no Set-Cookie header}"
 # Idle timeout: instead of waiting SESSION_LIFETIME (1 h), the session's last_activity is set to
 # 1970 in PHP's session file. "before" proves the session was logged in, so the check cannot
 # pass just because the login failed.
 idle=$(R "J=/tmp/j4; B=\"-s -u admin:labpanel123 -c \$J -b \$J\"
-  curl \$B -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null
-  echo \"before: \$(curl \$B 'http://10.0.0.1:8080/api.php?action=tor_status')\"
+  curl \$B -X POST -d 'action=login&username=admin&password=labpanel123' https://10.0.0.1/auth.php >/dev/null
+  echo \"before: \$(curl \$B 'https://10.0.0.1/api.php?action=tor_status')\"
   sed -i 's/last_activity|i:[0-9]*/last_activity|i:1/' /var/lib/php/sessions/sess_\$(awk '/shadowpi_session/{print \$7}' \$J) 2>&1
-  echo \"after: \$(curl \$B 'http://10.0.0.1:8080/api.php?action=tor_status')\"")
+  echo \"after: \$(curl \$B 'https://10.0.0.1/api.php?action=tor_status')\"")
 check P6 "Idle session expires (SESSION_LIFETIME)" $(echo "$idle" | grep -q 'before: {"active"' && echo "$idle" | grep -q 'after: .*Authentication required'; echo $?) "$(echo $idle)"
 
 echo "== VPN configured exactly as docs/03_OPENVPN_SETUP.md says"
@@ -84,7 +91,7 @@ R "lab-vpn-setup.sh && systemctl start openvpn-windscribe && /opt/shadowpi/scrip
 sleep 8
 got=$(site_from_client 8000)
 check V1 "Client reaches the internet through the VPN (docs config)" $([ "$got" = "$VPN_EXIT" ]; echo $?) "website saw: $got"
-ip=$(R "J=/tmp/jv; rm -f \$J; B=\"-s -u admin:labpanel123 -c \$J -b \$J\"; curl \$B -X POST -d 'action=login&username=admin&password=labpanel123' http://10.0.0.1:8080/auth.php >/dev/null; curl \$B 'http://10.0.0.1:8080/api.php?action=vpn_status'; echo; ls /opt/shadowpi/status/ /opt/anon-router/status/ 2>&1 | tr '\n' ' '")
+ip=$(R "J=/tmp/jv; rm -f \$J; B=\"-s -u admin:labpanel123 -c \$J -b \$J\"; curl \$B -X POST -d 'action=login&username=admin&password=labpanel123' https://10.0.0.1/auth.php >/dev/null; curl \$B 'https://10.0.0.1/api.php?action=vpn_status'; echo; ls /opt/shadowpi/status/ /opt/anon-router/status/ 2>&1 | tr '\n' ' '")
 check V2 "Panel shows the VPN IP" $(echo "$ip" | grep -q '"ip":"10\.8'; echo $?) "$ip"
 
 for p in 80 8000; do got=$(site_from_client $p); check "V3.$p" "Client → site:$p goes through the VPN" $([ "$got" = "$VPN_EXIT" ]; echo $?) "website saw: $got"; done
@@ -113,7 +120,10 @@ hits() { R "iptables -t nat -L SHADOWPI_TOR -v -n -x 2>/dev/null | awk '/redir p
 before=$(hits); got=$(site_from_client 8000); after=$(hits)
 check T1 "Tor 'Paranoid' mode sends client traffic into Tor" $([ "${after:-0}" -gt "${before:-0}" ] && [ "$got" != "$VPN_EXIT" ] && [ "$got" != "$ROUTER_WAN" ] && [ "$got" != 10.0.0.50 ]; echo $?) "panel said $(echo "$ton" | grep -o '"success":[a-z]*'); client connections counted by the Tor redirect rule: ${before:-none} → ${after:-none}; the lab website (not reachable from the Tor network) saw: $got"
 tor=$(C "curl -s -m 60 https://check.torproject.org/api/ip || echo none")
-check T3 "In Paranoid mode a real website sees a Tor exit (needs the real Tor network)" $(echo "$tor" | grep -q '"IsTor":true'; echo $?) "check.torproject.org answered: $tor; $(R "grep -o 'Bootstrapped [0-9]*%' /var/log/tor/notices.log 2>/dev/null | tail -1")"
+# T3 depends on the outside world. If Tor cannot bootstrap at all (a network that blocks Tor),
+# that says nothing about the project: the check is reported as SKIP, never as PASS.
+boot=$(R "grep -c 'Bootstrapped 100%' /var/log/tor/notices.log 2>/dev/null")
+check T3 "In Paranoid mode a real website sees a Tor exit (needs the real Tor network)" $(if echo "$tor" | grep -q '"IsTor":true'; then echo 0; elif [ "${boot:-0}" = 0 ]; then echo 2; else echo 1; fi) "check.torproject.org answered: $tor; $(R "grep -o 'Bootstrapped [0-9]*%' /var/log/tor/notices.log 2>/dev/null | tail -1")"
 png=$(C "ping -c 1 -W 3 $SITE >/dev/null 2>&1 && echo answered || echo 'no answer'"); fwd=$(R "iptables -L FORWARD -v -n -x | awk 'NR==3 {print \$1, \$3}'")
 check T4 "In Paranoid mode client traffic Tor cannot carry (ICMP, UDP) is dropped, not sent through the VPN" $([ "$png" = 'no answer' ] && echo "$fwd" | grep -q -E '^[1-9][0-9]* DROP'; echo $?) "client ping to the website: $png; first FORWARD rule (packets, action): $fwd"
 R "/opt/shadowpi/scripts/killswitch.sh >/dev/null 2>&1"; kept=$(R "iptables -t nat -S | grep -c SHADOWPI_TOR"); got=$(site_from_client 8000)
@@ -132,7 +142,7 @@ for p in 80 443 8000; do
   got=$(site_from_client $p); sleep 1; seen=$(R "grep -c '$SITE:$p' /var/log/xray/access.log")
   check "X2.$p" "Client → site:$p goes through V2Ray, then the VPN" $([ "$got" = "$VPN_EXIT" ] && [ "${seen:-0}" -ge 1 ]; echo $?) "website saw: $got; Xray access log entries: $seen"
 done
-code=$(C "curl -s -o /dev/null -w '%{http_code}' -m5 http://10.0.0.1:8080/")
+code=$(C "curl -sk -o /dev/null -w '%{http_code}' -m5 https://10.0.0.1/")   # -k: the client has not accepted the self-signed certificate
 check X5 "Panel on the router stays reachable (not sent to the proxy)" $([ "$code" = 200 ]; echo $?) "HTTP $code (200 = nginx on the router served the panel page)"
 R "/opt/shadowpi/scripts/killswitch.sh >/dev/null 2>&1"   # back to a clean ruleset
 
@@ -186,5 +196,6 @@ got=$(site_from_client 8000)
 check K5 "After a reboot the kill switch is on before anything else starts" $(echo $boot | grep -q '^3 active' && [ "$got" = none ]; echo $?) "DROP policies / kill switch unit / VPN service: $(echo $boot); client → website saw: $got"
 
 echo
-echo "PASS $pass  FAIL $fail   (details: lab/out/results.md, logs: lab/out/)"
-{ echo; echo "PASS $pass · FAIL $fail · $(date -u '+%Y-%m-%d %H:%M UTC')"; } >> "$RES"
+echo "PASS $pass  FAIL $fail  SKIP $skip   (details: lab/out/results.md, logs: lab/out/)"
+{ echo; echo "PASS $pass · FAIL $fail · SKIP $skip · $(date -u '+%Y-%m-%d %H:%M UTC')"; } >> "$RES"
+[ "$fail" = 0 ]   # exit code for CI: non-zero if any check failed
