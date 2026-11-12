@@ -17,6 +17,13 @@ if [ ! -f /pki/client.ovpn ]; then
 fi
 ip route add 198.51.100.0/24 via 172.30.0.30
 iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+# Docker Desktop hands packets from the real internet to this container with TCP checksums
+# that were never filled in (they are marked "already verified"). Delivered locally that is
+# harmless, but this server forwards them into the VPN tunnel, where the router's kernel
+# checks them and drops every one (TcpInCsumErrors). Recompute checksums on the way in, so
+# that TCP from the real internet works through the lab VPN. Needed for Tor (checks T1, T3).
+tc qdisc add dev eth0 handle ffff: ingress
+tc filter add dev eth0 parent ffff: protocol ip prio 1 u32 match u32 0 0 action csum ip4h and tcp and udp and icmp
 P=/pki/pki
 exec openvpn --dev tun --proto udp --port 1194 --server 10.8.0.0 255.255.255.0 --topology subnet \
   --ca $P/ca.crt --cert $P/issued/server.crt --key $P/private/server.key --dh none \
